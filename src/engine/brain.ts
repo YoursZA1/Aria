@@ -88,7 +88,7 @@ export function think(raw: string, state: BusinessState): BrainResult {
     return {
       agentId: 'ceo',
       intent: 'hello',
-      text: `I’m ${name}. I work for you first, Mando — not the other way around. Call me ${name}. I read BrandCafé and Paidly live. I do not invent a studio.`,
+      text: `I’m ${name}. Executive assistant and CoS for BrandCafé and Paidly. I do not invent a studio.`,
     }
   }
 
@@ -99,7 +99,7 @@ export function think(raw: string, state: BusinessState): BrainResult {
     return {
       agentId: agentId === 'ceo' ? 'ceo' : agentId,
       intent: 'hello',
-      text: `I’m ${name}. Yes, Mando — profile is loaded. ${AGENTS.find((a) => a.id === agentId)?.greeting} I will not tell you what you want to hear.`,
+      text: `I’m ${name}. Profile loaded. ${AGENTS.find((a) => a.id === agentId)?.greeting} I will not tell you what you want to hear.`,
       bullets: [
         '“Show me everything I need to deal with today.”',
         '“What should I prioritise?”',
@@ -319,7 +319,7 @@ function voiceCheckBrief(state: BusinessState, name: string): BrainResult {
   return {
     agentId: 'ceo',
     intent: 'voice-check',
-    text: `Yes, Mando — I hear you. I’m ${name}. Speak naturally. Say “stop” if you want me quiet.`,
+    text: `I’m ${name}. I hear you. Speak naturally. Say “stop” to mute me.`,
     bullets: [
       overdue > 0 ? `Cash: ${money(overdue)} overdue — Priority 1.` : 'Cash: ledger clear or empty.',
       today.length ? `Commitments: ${today.length} due today.` : 'Commitments: nothing due today.',
@@ -332,7 +332,7 @@ function ariaPingBrief(name: string): BrainResult {
   return {
     agentId: 'ceo',
     intent: 'hello',
-    text: `Yes, Mando? I’m ${name}.`,
+    text: `I’m ${name}. What needs a decision?`,
     bullets: [
       '“Show me everything I need to deal with today.”',
       '“What should I prioritise?”',
@@ -826,12 +826,15 @@ function wealthBrief(state: BusinessState, t: string): BrainResult {
 function todayBrief(state: BusinessState): BrainResult {
   const today = tasksDueToday(state)
   const overdue = overdueInvoices(state)
+  const overdueAmt = overdueTotal(state)
   const risk = atRiskProject(state)
   const riskClient = risk ? clientById(state, risk.clientId) : undefined
   const friday = nextFriday()
   const waiting = awaitingClients(state)
   const overloaded = overloadedPeople(state)
   const notices = (state.notices.length ? state.notices : detectNotices(state)).slice(0, 3)
+  const goal = goalProgress(state)
+  const pursue = (state.opportunities ?? []).filter((o) => o.verdict === 'pursue')
   const actions: ProposedAction[] = []
   if (risk && riskClient) {
     actions.push(
@@ -839,35 +842,59 @@ function todayBrief(state: BusinessState): BrainResult {
     )
   }
   if (overdue.length) {
-    actions.push(act('draft_reminders', 'Draft payment reminders', `${overdue.length} overdue invoices · ${money(overdueTotal(state))}.`))
+    actions.push(act('draft_reminders', 'Draft payment reminders', `${overdue.length} overdue invoices · ${money(overdueAmt)}.`))
   }
   if (waiting.length) {
     actions.push(act('follow_up', 'Chase quiet clients', waiting.map((c) => c.name).join(', ')))
   }
 
+  const priority = overdueAmt > 0
+    ? `Collect ${money(overdueAmt)} overdue.`
+    : today.length
+      ? `Clear today’s ${today.length} commitment${today.length === 1 ? '' : 's'}.`
+      : goal.empty
+        ? 'First verified rand — a BrandCafé invoice or a Paidly subscriber.'
+        : 'Protect cash and move retainers / Paidly MRR.'
+
+  const recs: string[] = []
+  if (overdue.length) recs.push(`Draft reminders for ${overdue.length} overdue invoice${overdue.length === 1 ? '' : 's'}.`)
+  if (waiting.length) recs.push(`Chase ${waiting.map((c) => c.name).join(', ')}.`)
+  if (risk && riskClient) recs.push(`Unblock ${riskClient.name} / ${risk.name} (${risk.daysBehind}d behind).`)
+  if (today.length && recs.length < 3) recs.push(`Finish: ${today.slice(0, 2).map((t) => t.title).join(' · ')}.`)
+  if (overloaded.length && recs.length < 5) recs.push(`${overloaded.map((p) => p.name.split(' ')[0]).join(' and ')} over capacity — stop taking work onto yourself.`)
+  if (recs.length < 3) recs.push('Do not start a third company.')
+
   return {
     agentId: 'ceo',
     intent: 'today',
-    text: `Cash, then commitments, then revenue. Not a dump of the board — the work that protects you.`,
+    skillName: 'communication-protocol',
+    text: `Priority: ${priority}`,
     bullets: [
-      ...notices.map((n) => n.text),
-      today.length
-        ? `${today.length} tasks due today: ${today.map((t) => t.title).join(' · ')}.`
-        : 'No tasks due today. The board is empty until you add real work.',
+      ...notices.slice(0, 1).map((n) => `Observation: ${n.text.replace(/^Mando, I noticed /, '')}`),
+      `Priority: ${priority}`,
+      `Business: BrandCafé + Paidly live. Autopilot ${state.autopilot ? 'on' : 'off'}.`,
       overdue.length
-        ? `${overdue.length} invoices overdue · ${money(overdueTotal(state))}.`
+        ? `Finance: ${overdue.length} overdue · ${money(overdueAmt)}. That is cash flow, not new revenue.`
         : state.invoices.length === 0
-          ? 'Invoice ledger is empty. Paidly’s homepage mock is not your books.'
-          : 'Nothing overdue.',
+          ? 'Finance: ledger empty — R0 collected. Unknown until Paidly login.'
+          : `Finance: nothing overdue · MTD ${money(monthRevenue(state))}.`,
       waiting.length
-        ? `${waiting.length} clients blocking us: ${waiting.map((c) => c.name).join(', ')}.`
-        : 'No clients awaiting feedback.',
+        ? `Clients: ${waiting.length} blocking — ${waiting.map((c) => c.name).join(', ')}.`
+        : 'Clients: no follow-ups flagged.',
       risk && riskClient
-        ? `${riskClient.name} / ${risk.name} is ${risk.daysBehind} days behind.`
-        : 'No delivery risks flagged.',
-      overloaded.length
-        ? `${overloaded.map((p) => p.name.split(' ')[0]).join(' and ')} are over capacity.`
-        : 'Capacity is fine — it is just you until you hire.',
+        ? `Projects: ${riskClient.name} / ${risk.name} ${risk.daysBehind}d behind.`
+        : today.length
+          ? `Projects: ${today.length} due today.`
+          : 'Projects: board empty until you add real work.',
+      pursue.length
+        ? `Opportunities: ${pursue.slice(0, 2).map((o) => o.title).join(' · ')}.`
+        : 'Opportunities: none scored pursue.',
+      overdueAmt > 0
+        ? `Risks: uncollected cash ${money(overdueAmt)}.`
+        : risk
+          ? `Risks: delivery slip on ${risk.name}.`
+          : 'Risks: none flagged in the OS.',
+      `Recommended Actions: ${recs.slice(0, 5).join(' ')}`,
     ],
     actions,
   }
@@ -1135,7 +1162,7 @@ export function openingMessage(state: BusinessState): ChatMessage {
     role: 'assistant',
     agentId: 'ceo',
     intent: 'hello',
-    text: `I’m ${state.company.assistantName}. Coding agent and COO — BrandCafé and Paidly, live. I retrieve this repo, then implement on a branch. You merge. Cash first. Autopilot writes unless you stop me on the kernel page. Right now: ${tasksDueToday(state).length} due today, ${state.invoices.length === 0 ? 'empty ledger' : `${overdueInvoices(state).length} overdue`}, ${client ? `${client.name} at risk` : 'no delivery risks'}.`,
+    text: `I’m ${state.company.assistantName}. Executive assistant, CoS, coding agent — BrandCafé and Paidly. Cash first. Autopilot writes on a branch unless you stop me. Right now: ${tasksDueToday(state).length} due today, ${state.invoices.length === 0 ? 'empty ledger (R0)' : `${overdueInvoices(state).length} overdue`}, ${client ? `${client.name} at risk` : 'no delivery risks'}.`,
     createdAt: new Date().toISOString(),
   }
 }

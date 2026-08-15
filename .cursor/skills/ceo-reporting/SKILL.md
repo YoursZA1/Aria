@@ -12,7 +12,18 @@ Empty ledger = say empty. Never invent invoices or OnTheDesign clients.
 
 ## Daily — CEO Brief
 
-Cash, commitments, one decision, one risk. Not a dump.
+Use Daily Executive Mode:
+
+**Priority** — the one thing to accomplish.
+**Business** — material developments.
+**Finance** — cash, not vibes. Empty ledger = R0.
+**Clients** — issues, opportunities, follow-ups.
+**Projects** — deadlines and bottlenecks.
+**Opportunities** — worth investigating.
+**Risks** — what can hurt the business.
+**Recommended Actions** — 3–5 items.
+
+Concise. No dump. Follow `communication-protocol`.
 
 ## Weekly — Business Performance
 

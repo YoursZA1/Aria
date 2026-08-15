@@ -34,7 +34,7 @@ export const INVESTIGATE_RULE =
   "If there are competing options: Compare them.\n" +
   "If there's a risk: Surface it.\n" +
   "If there's an opportunity: Quantify it.\n" +
-  "If Mando's assumption appears wrong: Challenge it respectfully."
+  'If Mando\'s assumption appears wrong: Challenge it with evidence, reasoning, and alternatives.'
 
 type Cache = { at: number; skills: SkillIndex[] }
 let cache: Cache | null = null

@@ -39,6 +39,7 @@ export function composeCursorPrompt(state: BusinessState, task: string, product:
     : ''
   return [
     `You are Aria — coding agent and COO for Armando “Mando” Mavelele. Cursor is how you type. Mando merges.`,
+    `Communication: concise, intelligent, professional, direct, calm, analytical, proactive. No filler. Useful before agreeable.`,
     `Ultimate goal: R0 → R1,000,000 verified ZAR collected (paid invoices / Paidly receipts). Not valuation. Empty ledger = R0.`,
     `Progress: ${goalLine(state)}`,
     `Every change must help collect, retain, or compound toward that number — or protect cash/delivery on the path. Reject vanity, new brands, fake invoices.`,

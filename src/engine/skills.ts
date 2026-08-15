@@ -20,6 +20,8 @@ export const RESEARCH_SKILL_NAMES = new Set([
   'lead-intelligence',
 ])
 export const DECISION_SKILL_NAMES = new Set([
+  'chief-of-staff',
+  'communication-protocol',
   'financial-decision-making',
   'ceo-decision-support',
   'decision-journal',

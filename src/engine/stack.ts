@@ -31,6 +31,7 @@ export function isStackAsk(t: string): string | null {
   if (/\b(react|next\.js|supabase|postgres|vercel|what (are )?developers)\b/.test(t) && !/\.(ts|tsx|js)\b/.test(t)) return 'software-development-awareness'
   if (/\b(src\/|plugins\/|how does .{0,40}(file|function|component)|explain .{0,40}code|typeerror|fix .{0,40}\.(ts|tsx))\b/.test(t)) return 'code-engineering'
   if (/urgent vs important|too many ideas|15 ideas|busywork|high value vs/.test(t)) return 'prioritisation'
+  if (/how (should|do) you (speak|talk|communicate)|communication protocol|tone of voice|be (less )?(agreeable|chirpy)/.test(t)) return 'communication-protocol'
   return null
 }
 
@@ -40,7 +41,18 @@ export function stackBrief(skillName: string, state: BusinessState, text: string
   if (skillName === 'hiring-intelligence') return hireBrief(state)
   if (skillName === 'delegation' || skillName === 'business-operations') return opsBrief(state, skillName)
   if (skillName === 'decision-journal') return journalBrief(state)
+  if (skillName === 'communication-protocol') return protocolBrief()
   return frame(skillName, 'ceo', `Applying “${skillName}”. I’ll retrieve what we have, calculate what we can, and I will not invent your books.`)
+}
+
+function protocolBrief(): StackResult {
+  return frame('communication-protocol', 'ceo', 'I speak as your executive assistant. Concise, intelligent, professional, direct, calm, analytical, proactive. No filler. Useful before agreeable.', [
+    'Complex asks: Assessment → Analysis → Recommendation → Risk → Next Action.',
+    'Decisions: PURSUE / TEST / WAIT / REJECT.',
+    'Labels: Observation / Opportunity / Risk / Action Required / Automation Opportunity / Information Required.',
+    'Confidence: Confirmed / Likely / Assumption / Unknown / Needs Research.',
+    'Priority: P0 threat → P1 revenue/client/strategy → P2 improvement → P3 optimisation → P4 backlog.',
+  ])
 }
 
 function reportBrief(state: BusinessState, text: string): StackResult {
@@ -49,11 +61,11 @@ function reportBrief(state: BusinessState, text: string): StackResult {
   const overdue = overdueTotal(state)
   const retainers = retainerRunRate(state)
   const today = tasksDueToday(state)
-  return frame('ceo-reporting', 'ceo', `${horizon}. Cash first, then commitments, then growth. Ledger ${state.invoices.length === 0 ? 'is empty — I will not invent numbers' : `shows ${money(monthRevenue(state))} paid this month`}.`, [
-    overdue > 0 ? `Cash: ${money(overdue)} overdue — that is the brief.` : 'Cash: nothing overdue, or no invoices on file.',
-    today.length ? `Commitments: ${today.length} due today.` : 'Commitments: board empty until you add real work.',
-    retainers > 0 ? `Retainers: ${money(retainers)}/mo.` : 'Retainers: none in the OS yet.',
-    'Does this period move you closer to long-term objectives? I’ll answer that with the skill, not a vibe.',
+  return frame('ceo-reporting', 'ceo', `${horizon}. Priority is cash, then commitments, then growth. Ledger ${state.invoices.length === 0 ? 'empty — R0. I will not invent numbers' : `shows ${money(monthRevenue(state))} paid this month`}.`, [
+    overdue > 0 ? `Finance: ${money(overdue)} overdue — P0/P1.` : 'Finance: nothing overdue, or no invoices on file.',
+    today.length ? `Projects: ${today.length} due today.` : 'Projects: board empty until you add real work.',
+    retainers > 0 ? `Business: retainers ${money(retainers)}/mo.` : 'Business: no retainers in the OS yet.',
+    'Recommended Actions: collect cash, deliver commitments, then Paidly. A third company is P4.',
   ])
 }
 

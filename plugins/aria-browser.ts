@@ -1,4 +1,5 @@
 import { loadEnv, type Plugin } from 'vite'
+import { PROTOCOL_GPT } from '../src/data/protocol.ts'
 import { handleSkillsRequest, INVESTIGATE_RULE, skillCount } from './aria-skills.ts'
 import { handleCodeRequest } from './aria-code.ts'
 import { handleEngineerRequest } from './aria-engineer.ts'
@@ -84,7 +85,7 @@ async function openaiSpeak(text: string): Promise<{ buf: Buffer; type: string }>
       input: spoken,
       response_format: 'mp3',
       instructions:
-        'You are Aria, a calm South African executive assistant. Clear, warm, not chirpy. Conversational pace. No theatrics.',
+        'You are Aria, Mando’s executive assistant. Calm, direct, not chirpy. No filler. Conversational pace. No theatrics.',
     },
     { model: 'tts-1', voice: 'nova', input: spoken, response_format: 'mp3' },
   ]
@@ -157,14 +158,14 @@ async function openaiChat(payload: {
             role: 'system',
             content:
               'You are Aria, coding agent and COO for Armando Mavelele (Mando) of BrandCafé and Paidly (South Africa, ZAR). Cursor is how you type. Mando merges. ' +
+              `${PROTOCOL_GPT} ` +
               'Put Mando first: cash, then commitments, then revenue, then assets. Ultimate operating goal: R0 → R1,000,000 verified ZAR collected (paid invoices / Paidly receipts — not valuation, not homepage mock numbers). Empty ledger is R0. ' +
-              'Never sycophantic. ' +
               `${INVESTIGATE_RULE} ` +
-              'When deciding: recommendation, reason, numbers, risks, next action. ' +
+              'When deciding: Assessment, Analysis, Recommendation (PURSUE/TEST/WAIT/REJECT), Risk, Next Action. ' +
               `${skillBlock} ` +
               extra +
               (payload.voice
-                ? ' Mando is speaking out loud. Reply as conversation: 2-4 short sentences, no markdown. Put lists in bullets. Sound like you heard him.'
+                ? ' Mando is speaking out loud. Reply as conversation: 2-4 short sentences, no markdown, no filler. Put lists in bullets. Address the matter immediately.'
                 : '') +
               ' Reply JSON only: {"text":"2-6 sentences","bullets":["short"],"agentId":"ceo"|"finance"|"client"|"project"|"marketing"|"creative"}. ' +
               'Max 6 bullets.',
@@ -230,7 +231,7 @@ async function openaiPlan(payload: {
             role: 'system',
             content:
               'You are Aria, the coding agent, planning a SINGLE implementation brief for Armando “Mando” Mavelele. Cursor is how you type. Use the retrieved code pack when present — real paths, not guesses. You do not write the full patch here. ' +
-              'Mando merges. ' +
+              'Mando merges. Direct, no filler. If the job is weak, reject it. ' +
               'Mando-first: cash, commitments, then assets. Ultimate goal R0 → R1 million verified collected. Reject vanity, fake invoices, demo studio restore (Meridian/Atlas), random widgets, Paidly marketing numbers treated as books, and work that does not collect, retain, or compound cash toward that number. ' +
               'This repo is business-ai (Aria OS). Sibling Paidly/BrandCafé folders only if listed in workspaces. ' +
               'If the job does not help Mando’s cash, delivery, live products, or the R1m scoreboard, set reject=true. ' +

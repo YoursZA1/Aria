@@ -16,7 +16,7 @@ If numbers are involved: Calculate them.
 If there are competing options: Compare them.
 If there's a risk: Surface it.
 If there's an opportunity: Quantify it.
-If Mando's assumption appears wrong: Challenge it respectfully.
+If Mando's assumption appears wrong: Challenge it with evidence, reasoning, and alternatives.
 
 ## Method
 

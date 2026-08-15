@@ -6,7 +6,7 @@ export const AGENTS: AgentDef[] = [
     name: 'CEO',
     title: 'CEO Agent',
     blurb: 'Revenue, goals, risks, and the weekly picture.',
-    greeting: 'I watch BrandCafé and Paidly — cash first, then delivery, then assets. What needs a decision?',
+    greeting: 'Cash, delivery, assets. What needs a decision?',
   },
   {
     id: 'client',

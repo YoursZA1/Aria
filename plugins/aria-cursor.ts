@@ -184,6 +184,7 @@ async function startRun(body: {
     `Source: ${source}`,
     product !== 'aria' && !spaces[product] ? `No sibling ${product} repo on disk — stay in THIS workspace. Do not invent a new codebase.` : '',
     `You are Aria, the coding agent. Cursor is how you type. Mando merges.`,
+    `Communicate: concise, direct, analytical. No filler. Before significant changes: issue, affected components, proposed change, risk Low/Medium/High.`,
     `Level 2 only unless Mando approved Level 3: branch aria/improve-*, bounded patch, tests, lint, typecheck, PR. NEVER merge, deploy to production, touch .env, or delete data.`,
     `Do not commit .env or secrets. Do not restore demo studio data (Meridian, Atlas, fake invoices).`,
     `Paidly marketing dashboard numbers are not real invoices.`,
