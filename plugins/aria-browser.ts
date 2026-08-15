@@ -1,5 +1,5 @@
-import { loadEnv, type Plugin } from 'vite'
 import { PROTOCOL_GPT } from '../src/data/protocol.js'
+import { cursorKey, googleCreds, openaiKey } from './aria-env.js'
 import { handleSkillsRequest, INVESTIGATE_RULE, skillCount } from './aria-skills.js'
 import { handleCodeRequest } from './aria-code.js'
 import { handleEngineerRequest } from './aria-engineer.js'
@@ -11,29 +11,7 @@ const MAX_BYTES = 700_000
 const TIMEOUT_MS = 12_000
 
 type SearchHit = { title: string; url: string; snippet: string }
-type GoogleCreds = { key: string; cx: string }
-
-function envBag() {
-  return loadEnv(process.env.NODE_ENV === 'production' ? 'production' : 'development', process.cwd(), '')
-}
-
-function creds(): GoogleCreds {
-  const env = envBag()
-  return {
-    key: (env.GOOGLE_CSE_API_KEY || env.GOOGLE_API_KEY || process.env.GOOGLE_CSE_API_KEY || process.env.GOOGLE_API_KEY || '').trim(),
-    cx: (env.GOOGLE_CSE_CX || env.GOOGLE_CSE_ID || process.env.GOOGLE_CSE_CX || process.env.GOOGLE_CSE_ID || '').trim(),
-  }
-}
-
-function openaiKey() {
-  const env = envBag()
-  return (env.OPENAI_API_KEY || process.env.OPENAI_API_KEY || '').trim()
-}
-
-function cursorKey() {
-  const env = envBag()
-  return (env.CURSOR_API_KEY || process.env.CURSOR_API_KEY || '').trim()
-}
+type GoogleCreds = ReturnType<typeof googleCreds>
 
 function scrub(s: string) {
   return s.replace(/sk-[a-zA-Z0-9_\-]+/g, '[redacted]').replace(/key_[a-zA-Z0-9]+/g, '[redacted]')
@@ -457,7 +435,7 @@ async function googleSearch(query: string, auth: GoogleCreds): Promise<SearchHit
 }
 
 async function searchWeb(query: string) {
-  const auth = creds()
+  const auth = googleCreds()
   const google = await googleSearch(query, auth)
   if (google.length) return { results: google.slice(0, 8), engine: 'google' as const }
 
@@ -492,7 +470,7 @@ export async function handleBrowserRequest(url: string, req: AriaReq, res: AriaR
           return
         }
         if (parsed.pathname === '/__aria/health') {
-          const auth = creds()
+          const auth = googleCreds()
           json(res, 200, {
             ok: true,
             browser: 'live',
@@ -672,13 +650,15 @@ function attach(server: { middlewares: { use: (fn: (req: { url?: string; method?
   })
 }
 
-export function ariaBrowser(): Plugin {
+type ViteConnect = Parameters<typeof attach>[0]
+
+export function ariaBrowser() {
   return {
     name: 'aria-browser',
-    configureServer(server) {
+    configureServer(server: ViteConnect) {
       attach(server)
     },
-    configurePreviewServer(server) {
+    configurePreviewServer(server: ViteConnect) {
       attach(server)
     },
   }

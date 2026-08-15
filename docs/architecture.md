@@ -24,8 +24,8 @@ The frontend calls `/__aria/*`. Those routes are **implemented**, not stubs.
 
 | Runtime | How they run |
 |---|---|
-| `npm run dev` / `vite preview` | Vite middleware in `plugins/aria-browser.ts` and `plugins/aria-cursor.ts` |
-| Vercel production | Rewrite `/__aria/:path*` → `/api/aria/:path*` → same handlers via `plugins/aria-serve.ts` |
+| `npm run dev` / `vite preview` | Vite middleware in `plugins/aria-browser.ts` and `plugins/aria-cursor.ts`. `vite.config.ts` copies `.env` into `process.env`. |
+| Vercel production | Rewrite `/__aria/:path*` → `/api/aria/:path*` → same handlers via `plugins/aria-serve.ts`. Handlers read `process.env` only — they must not import `vite` (native bindings crash the function). |
 
 | Route | What it does | Production |
 |---|---|---|

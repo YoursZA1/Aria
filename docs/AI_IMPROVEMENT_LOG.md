@@ -69,3 +69,17 @@ Do not invent scores. If the sample is too small, write **insufficient data**.
 **Did it improve the assistant?** It unblocks search/read/think/skills on the live site. Cursor spawn remains local.
 
 **Lessons.** Do not stub `/__aria`. Register the existing plugin handlers.
+
+---
+
+## 2026-08-15 — Vercel `/__aria` native-binding crash
+
+**What changed.** Production rewrite worked, then the function died with `Cannot find native binding` because `aria-browser.ts` / `aria-cursor.ts` imported `loadEnv` from `vite`. Env reads moved to `plugins/aria-env.ts` (`process.env` only). Local Vite still hydrates `.env` in `vite.config.ts`.
+
+**Why.** The frontend 404s were routing. The follow-on 500s were bundling Vite into the serverless graph.
+
+**Test results.** Unit tests assert the serverless files do not import `vite`. Local Vite `/__aria/health` stays the real handler.
+
+**Did it improve the assistant?** It is required for search/read/think/skills on https://aria-khaki-one.vercel.app. Cursor spawn remains local.
+
+**Lessons.** Vite plugins may import `vite`. The Vercel `/__aria` dispatcher may not.

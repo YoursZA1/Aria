@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, join, resolve } from 'node:path'
-import { loadEnv, type Plugin } from 'vite'
+import { brandcafeCwd, cursorKey, paidlyCwd } from './aria-env.js'
 
 const MAX_PROMPT = 24_000
 const MAX_RUN_MS = 8 * 60_000
@@ -40,11 +40,10 @@ let active: Active | null = null
 const history: CursorSnapshot[] = []
 
 function env() {
-  const loaded = loadEnv(process.env.NODE_ENV === 'production' ? 'production' : 'development', process.cwd(), '')
   return {
-    apiKey: (loaded.CURSOR_API_KEY || process.env.CURSOR_API_KEY || '').trim(),
-    paidly: (loaded.ARIA_PAIDLY_CWD || process.env.ARIA_PAIDLY_CWD || '').trim(),
-    brandcafe: (loaded.ARIA_BRANDCAFE_CWD || process.env.ARIA_BRANDCAFE_CWD || '').trim(),
+    apiKey: cursorKey(),
+    paidly: paidlyCwd(),
+    brandcafe: brandcafeCwd(),
   }
 }
 
@@ -352,7 +351,9 @@ export async function handleCursorRequest(url: string, req: IncomingMessage, res
   }
 }
 
-function attach(server: { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }) {
+type ViteConnect = { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }
+
+function attach(server: ViteConnect) {
   server.middlewares.use((req, res, next) => {
     const url = (req as { originalUrl?: string }).originalUrl ?? req.url ?? ''
     if (!url.startsWith('/__aria/cursor')) return next()
@@ -360,13 +361,13 @@ function attach(server: { middlewares: { use: (fn: (req: IncomingMessage, res: S
   })
 }
 
-export function ariaCursor(): Plugin {
+export function ariaCursor() {
   return {
     name: 'aria-cursor',
-    configureServer(server) {
+    configureServer(server: ViteConnect) {
       attach(server)
     },
-    configurePreviewServer(server) {
+    configurePreviewServer(server: ViteConnect) {
       attach(server)
     },
   }
