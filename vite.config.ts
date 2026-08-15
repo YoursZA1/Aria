@@ -6,4 +6,12 @@ import { ariaCursor } from './plugins/aria-cursor.ts'
 export default defineConfig({
   plugins: [react(), ariaCursor(), ariaBrowser()],
   optimizeDeps: { exclude: ['@cursor/sdk'] },
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
+  },
+  preview: {
+    host: '127.0.0.1',
+  },
 })

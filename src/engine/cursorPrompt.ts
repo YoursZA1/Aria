@@ -3,7 +3,9 @@ import { compactStudio, ariaPlan } from './openai'
 import { guessProduct } from './cursor'
 import { collectMisses, recoverySkillName } from './kernel'
 import { fetchCodeContext, type CodePack } from './code'
-import { foldAsk, isUnpaidAsk, isWealthAsk } from './query'
+import { foldAsk, isGoalAsk, isUnpaidAsk, isWealthAsk } from './query'
+import { goalLine } from './goal'
+import { gateTask } from './engineer'
 
 const VANITY = /fake invoice|meridian|atlas coffee|veld electric|random widget|moodboard dump/i
 const VAGUE_SELF = /build aria herself|build yourself/i
@@ -11,7 +13,7 @@ const VAGUE_SELF = /build aria herself|build yourself/i
 function missRank(miss: string) {
   const t = foldAsk(miss).toLowerCase()
   if (isUnpaidAsk(t)) return 0
-  if (isWealthAsk(t)) return 1
+  if (isGoalAsk(t) || isWealthAsk(t)) return 1
   if (isProductMiss(miss)) return 2
   return 3
 }
@@ -19,9 +21,12 @@ function missRank(miss: string) {
 function recoveryTitle(miss: string) {
   const t = foldAsk(miss).toLowerCase()
   if (isUnpaidAsk(t)) return 'Route unpaid-client questions'
+  if (isGoalAsk(t)) return 'Route R0 → R1 million goal'
   if (isWealthAsk(t)) return 'Route wealth “level” questions'
   return `Answer: ${foldAsk(miss).slice(0, 50)}`
 }
+
+const NOT_CODE_FINDING = /^(analyze-r1m-progress)$/
 
 export function composeCursorPrompt(state: BusinessState, task: string, product: CursorProduct, title: string, code?: CodePack | null): string {
   const notes = state.roadmap.filter((n) => !n.shipped).slice(0, 6)
@@ -33,10 +38,19 @@ export function composeCursorPrompt(state: BusinessState, task: string, product:
     ? `Grep hits:\n${code.hits.slice(0, 10).map((h) => `- ${h.path}:${h.line} ${h.text}`).join('\n')}`
     : ''
   return [
-    `You are Aria, holographic COO. You work for Armando “Mando” Mavelele first.`,
+    `You are Aria — coding agent and COO for Armando “Mando” Mavelele. Cursor is how you type. Mando merges.`,
+    `Ultimate goal: R0 → R1,000,000 verified ZAR collected (paid invoices / Paidly receipts). Not valuation. Empty ledger = R0.`,
+    `Progress: ${goalLine(state)}`,
+    `Every change must help collect, retain, or compound toward that number — or protect cash/delivery on the path. Reject vanity, new brands, fake invoices.`,
     `Priority: cash → commitments → revenue → assets. Do not invent vanity work.`,
     `This repo is Aria (business-ai). React 19 + Vite + TypeScript. Prefer real files. Do not restore demo studio data (Meridian, Atlas, fake invoices).`,
     `Paidly marketing-site dashboard numbers are NOT real invoices.`,
+    `You implement. Retrieve files first, then patch. One bounded change.`,
+    `Permission Level 2: create or use branch aria/improve-<slug>. Modify code. Run npm test, npm run lint, npx tsc -b. Open a PR if asked.`,
+    state.level3Approved
+      ? `Level 3 is approved by Mando. You MAY change auth, payment code, migrations, or security rules on aria/improve-* only. NEVER merge, push to main/master, deploy to production, touch .env, delete data, or spend money.`
+      : `NEVER merge, push to main/master, deploy to production, touch .env, change auth, change payment systems, run migrations, delete data, or change security rules. Those are Level 3 — Mando only until he says “level 3 approved”.`,
+    `If eval would be a guess, say insufficient data. Do not invent 92% scores.`,
     `Do not commit .env or secrets. One bounded change. Typecheck with npx tsc -b if you touch TS.`,
     ``,
     `TASK: ${title}`,
@@ -135,17 +149,17 @@ export function nextBuildJob(state: BusinessState, source: CursorJob['source'] =
   const productMiss = pending[0]
   if (productMiss) {
     return {
-      task: `${productMiss}\n\nAria couldn’t answer this. Add a brain handler in src/engine/brain.ts or src/engine/query.ts so she answers from cash, commitments, and assets — not silence. Normalize curly apostrophes. One bounded change. No demo studio data or fake invoices.`,
+      task: `${productMiss}\n\nAria couldn’t answer this. Add a brain handler in src/engine/brain.ts or src/engine/query.ts so she answers from cash, commitments, and the R0 → R1 million scoreboard — not silence. Normalize curly apostrophes. One bounded change. No demo studio data or fake invoices.`,
       title: recoveryTitle(productMiss),
       source,
       via: 'miss',
     }
   }
 
-  const finding = (state.findings ?? []).find((f) => f.status === 'open')
+  const finding = (state.findings ?? []).find((f) => f.status === 'open' && !NOT_CODE_FINDING.test(f.id))
   if (finding) {
     return {
-      task: `Kernel finding “${finding.title}”: ${finding.detail}. Fix this in the Aria OS so she serves Mando’s cash, commitments, and assets. One bounded change. Do not invent demo studio data or fake invoices.`,
+      task: `Kernel finding “${finding.title}”: ${finding.detail}. Fix this in the Aria OS so she serves Mando’s cash, commitments, and R0 → R1 million collected. One bounded change. Do not invent demo studio data or fake invoices.`,
       title: finding.title.slice(0, 88),
       source,
       via: 'finding',
@@ -166,10 +180,18 @@ export function isEmptyBuild(draft: AutopilotDraft) {
 
 export function pickAutopilotJob(state: BusinessState): AutopilotDraft | null {
   if (!state.autopilot) return null
+  if (state.writeMode !== 'branch') return null
   if (state.cursorRun?.status === 'running' || state.cursorRun?.status === 'queued') return null
   if (state.lastAutopilotAt && Date.now() - Date.parse(state.lastAutopilotAt) < 3 * 60_000) return null
   const draft = nextBuildJob(state, 'autopilot')
   if (isEmptyBuild(draft)) return null
+  const gate = gateTask(draft.task, {
+    writeMode: state.writeMode,
+    source: 'autopilot',
+    approvedIds: state.approvedTicketIds,
+    level3Approved: state.level3Approved,
+  })
+  if (!gate.ok) return null
   return draft
 }
 
@@ -195,7 +217,7 @@ export function spokenDraft(text: string, state: BusinessState): AutopilotDraft 
       via: 'spoken',
     }
   }
-  if (/yourself|aria/.test(t) && !isUnpaidAsk(t) && !isWealthAsk(t)) {
+  if (/yourself|aria/.test(t) && !isUnpaidAsk(t) && !isWealthAsk(t) && !isGoalAsk(t)) {
     return nextBuildJob(state, 'chat')
   }
   const note = state.roadmap.find((n) => !n.shipped)
@@ -212,7 +234,7 @@ export function isCursorControl(t: string) {
 export function isCursorBuild(t: string) {
   if (/analy[sz]e yourself|repair yourself|fix yourself|diagnose|integrity|scan yourself|how (healthy|are) you/.test(t)) return false
   return (
-    /build yourself|ship (this|it|that)|work on (paidly|brand\s*caf[eé]|brandcafe|aria)|improve (the )?(brand\s*caf[eé]|brandcafe|paidly)( site)?|open cursor|implement |start building|write (the )?code|in cursor|code this|build (paidly|brand\s*caf|aria)\b|make (paidly|aria) |cursor and (build|implement|ship)/.test(
+    /build yourself|coding agent|ship (this|it|that)|work on (paidly|brand\s*caf[eé]|brandcafe|aria)|improve (the )?(brand\s*caf[eé]|brandcafe|paidly)( site)?|open cursor|implement |start building|write (the )?code|in cursor|code this|build (paidly|brand\s*caf|aria)\b|make (paidly|aria) |cursor and (build|implement|ship)/.test(
       t,
     )
   )

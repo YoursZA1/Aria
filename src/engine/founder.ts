@@ -1,6 +1,7 @@
-import type { BusinessState, Notice, Opportunity } from '../types'
+import type { BusinessState, Notice, Opportunity, Task } from '../types'
 import { FOUNDER } from '../data/founder'
 import { money } from '../lib/format'
+import { collectedRevenue, goalProgress, servesGoal } from './goal'
 import {
   atRiskProject,
   awaitingClients,
@@ -24,6 +25,14 @@ export function mandoToday(state: BusinessState) {
   const me = mandoPerson(state)
   if (!me) return []
   return tasksDueToday(state).filter((t) => t.assigneeId === me.id)
+}
+
+/** Production or kickoff work the founder should not own day-to-day. */
+const PRODUCTION_TITLE = /brief |call sheet|follow up|chase |revisions|moodboard|export|kickoff —/i
+
+export function isDelegatableTask(task: Task): boolean {
+  if (PRODUCTION_TITLE.test(task.title)) return true
+  return task.priority === 'low'
 }
 
 export function detectNotices(state: BusinessState): Notice[] {
@@ -61,10 +70,22 @@ export function detectNotices(state: BusinessState): Notice[] {
   } else if (state.invoices.length === 0) {
     notices.push({
       id: 'no-ledger',
-      priority: 3,
+      priority: 2,
       href: '/finance',
-      prompt: 'What is on Paidly?',
-      text: 'Mando, I noticed the invoice ledger is empty. The Paidly marketing site is not your books — log in there for real receivables. I will not copy the demo dashboard (Highveld, Brightleaf) as if it were yours.',
+      prompt: 'How do I get from R0 to R1 million?',
+      text: 'Mando, I noticed the invoice ledger is empty — R0 of R1 million. The Paidly marketing site is not your books. First rand is a real BrandCafé invoice or a Paidly subscriber. I will not copy the demo dashboard (Highveld, Brightleaf).',
+    })
+  }
+
+  const collected = collectedRevenue(state)
+  if (collected > 0 && collected < FOUNDER.ultimateGoal.amount) {
+    const g = goalProgress(state)
+    notices.push({
+      id: 'r1m',
+      priority: 4,
+      href: '/finance',
+      prompt: 'How do I get from R0 to R1 million?',
+      text: `Mando, I noticed ${money(collected)} collected toward R1 million (${g.pct}%). Next milestone ${money(g.next)}.`,
     })
   }
 
@@ -126,7 +147,23 @@ export function detectOpportunities(state: BusinessState): Opportunity[] {
   const overdue = overdueTotal(state)
   const cashHot = overdue > 0
   const paidly = state.projects.find((p) => /paidly/i.test(p.name))
+  const collected = collectedRevenue(state)
   const ops: Opportunity[] = []
+
+  if (collected === 0) {
+    ops.push({
+      id: 'first-rand',
+      title: 'First rand toward R1 million',
+      whyNow: 'Scoreboard is R0. Nothing compounds until cash is real.',
+      who: 'One BrandCafé buyer or one Paidly subscriber.',
+      whyUs: 'You already have two live companies. You do not need a third.',
+      money: 'R1 is the next milestone. R1,000,000 is the destination.',
+      difficulty: 'med',
+      test: 'One paid invoice or one paid Paidly plan this month. Connect the ledger. Do not start a new offer until that exists.',
+      verdict: cashHot ? 'wait' : 'pursue',
+      reason: cashHot ? 'WAIT — collect what is already owed first.' : 'PURSUE — first verified rand beats every new idea.',
+    })
+  }
 
   if (overdue > 0) {
     ops.push({
@@ -153,7 +190,7 @@ export function detectOpportunities(state: BusinessState): Opportunity[] {
     difficulty: 'med',
     test: 'One activation metric this month. Kill features that fail revenue, retention, value, efficiency, advantage.',
     verdict: cashHot ? 'wait' : 'pursue',
-    reason: cashHot ? 'WAIT — collect cash first.' : 'PURSUE — this is Level 4. Do not treat it as a side tab.',
+      reason: cashHot ? 'WAIT — collect cash first.' : 'PURSUE — this is Level 4 and the compounding engine for R1 million. Do not treat it as a side tab.',
   })
 
   const event = state.projects.find((p) => /event/i.test(p.name))
@@ -229,10 +266,10 @@ export function judgeIdea(text: string, state: BusinessState): {
     return {
       verdict: 'reject',
       title: 'A new company / product',
-      reason: `You already have ${liveProducts}. A new front is how founders stay busy and poor.`,
-      numbers: `MTD ${money(monthRevenue(state))} (ledger).`,
+      reason: `You already have ${liveProducts}. A new front is how founders stay busy and poor. It does not move R0 → R1 million — it resets the clock.`,
+      numbers: `Collected toward R1m: ${money(collectedRevenue(state))}. MTD ${money(monthRevenue(state))} (ledger).`,
       risks: 'Opportunity cost is Paidly.',
-      next: 'Improve Paidly. Labs can prototype. Do not name a new brand.',
+      next: 'Improve Paidly. Labs can prototype. Do not name a new brand. Scoreboard is R0 → R1 million collected.',
     }
   }
 
@@ -252,7 +289,7 @@ export function judgeIdea(text: string, state: BusinessState): {
       verdict: 'wait',
       title: 'Paidly feature',
       reason: FOUNDER.ventures.find((v) => v.id === 'paidly' && 'test' in v)?.test ?? 'Revenue, retention, value, efficiency, advantage — or no.',
-      numbers: 'If it does not move a metric, it is consumption.',
+      numbers: `If it does not move collected cash toward R1 million, it is consumption.`,
       risks: 'Building comfort features instead of distribution.',
       next: cashHot || risk ? 'Cash and delivery first.' : 'Name the metric. If you cannot, we do not build it.',
     }
@@ -270,12 +307,14 @@ export function judgeIdea(text: string, state: BusinessState): {
   }
 
   return {
-    verdict: 'test',
+    verdict: servesGoal(text) ? 'test' : 'wait',
     title: 'This idea',
-    reason: 'Not obviously stupid — and not obviously worth a company.',
-    numbers: `MTD ${money(monthRevenue(state))} · you at ${me?.load ?? 0}%.`,
-    risks: 'If this needs you every week, it is a job, not an asset.',
-    next: 'Smallest test that can fail in 7 days.',
+    reason: servesGoal(text)
+      ? 'Not obviously stupid — and not obviously worth a company. It might move collected cash toward R1 million. Test it small.'
+      : 'This does not obviously collect, retain, or compound cash toward R1 million. WAIT unless you can name the rand it produces.',
+    numbers: `R1m scoreboard ${money(collectedRevenue(state))} · MTD ${money(monthRevenue(state))} · you at ${me?.load ?? 0}%.`,
+    risks: 'If this needs you every week, it is a job, not an asset. Jobs do not compound to R1m.',
+    next: 'Smallest test that can fail in 7 days. If it cannot collect or retain cash, park it.',
   }
 }
 

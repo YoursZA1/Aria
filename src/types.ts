@@ -162,6 +162,8 @@ export type ProposedAction = {
     | 'draft_proposal'
     | 'reassign'
     | 'cursor_build'
+    | 'engineer_implement'
+    | 'engineer_approve'
   label: string
   secondaryLabel?: string
   description: string
@@ -287,6 +289,59 @@ export type Knowledge = {
   source: 'search' | 'page'
 }
 
+export type EngineerLevel = 1 | 2 | 3
+export type EngineerWriteMode = 'off' | 'branch'
+export type TicketArea = 'code' | 'ai' | 'business'
+export type TicketStatus =
+  | 'proposed'
+  | 'planned'
+  | 'in_branch'
+  | 'pr_open'
+  | 'needs_approval'
+  | 'rejected'
+  | 'merged'
+  | 'rolled_back'
+
+export type EvalSnapshot = {
+  at: string
+  sample: number
+  reasoningAccuracy: number | null
+  toolCallSuccess: number | null
+  researchAccuracy: number | null
+  responseRelevance: number | null
+  testPass: number | null
+  avgReplyMs: number | null
+  notes: string[]
+}
+
+export type ImprovementTicket = {
+  id: string
+  area: TicketArea
+  problem: string
+  cause: string
+  improvement: string
+  benefit: string
+  risk: 'low' | 'med' | 'high'
+  level: EngineerLevel
+  status: TicketStatus
+  evalBefore?: EvalSnapshot
+  evalAfter?: EvalSnapshot
+  branch?: string
+  at: string
+}
+
+export type ImprovementReport = {
+  id: string
+  at: string
+  code: string[]
+  ai: string[]
+  business: string[]
+  tickets: ImprovementTicket[]
+  eval: EvalSnapshot
+  vsPrev?: 'improved' | 'regressed' | 'unchanged' | 'insufficient'
+  summary: string
+}
+
 export type DecisionRecord = {
   id: string
   decision: string
@@ -332,9 +387,19 @@ export type BusinessState = {
   briefingDismissed: boolean
   theme: 'dark' | 'light'
   autopilot: boolean
+  writeMode: EngineerWriteMode
+  /** Set once Aria became the coding agent, so an explicit pause stays paused after reload. */
+  writeModeSeed?: 'coding-agent'
   cursorRun?: CursorRun
   cursorHistory: CursorRun[]
   cursorReady?: boolean
   lastAutopilotAt?: string
+  lastImproveAt?: string
+  tickets: ImprovementTicket[]
+  reports: ImprovementReport[]
+  evals: EvalSnapshot[]
+  approvedTicketIds: string[]
+  level3Approved?: boolean
+  level3ApprovedAt?: string
   decisions: DecisionRecord[]
 }

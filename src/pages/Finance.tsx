@@ -1,5 +1,6 @@
 import { useBusiness } from '../store/BusinessProvider'
 import { clientById, monthRevenue, overdueInvoices, overdueTotal, outstandingTotal } from '../engine/insights'
+import { goalProgress } from '../engine/goal'
 import { fmtDate, money } from '../lib/format'
 
 const invClass: Record<string, string> = {
@@ -14,16 +15,22 @@ export function Finance() {
   const rev = monthRevenue(state)
   const pct = state.company.monthTarget ? Math.round((rev / state.company.monthTarget) * 100) : 0
   const sent = state.emails.filter((e) => e.status === 'sent')
+  const goal = goalProgress(state)
 
   return (
     <div>
       <header className="page-head">
         <div className="kicker">Finance Agent</div>
         <h2>Finance</h2>
-        <p>Cash, invoices, and the money sitting in other people’s inboxes.</p>
+        <p>Cash, invoices, and the climb from R0 to R1 million collected — not homepage mock numbers.</p>
       </header>
-      <div className="insight-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-        <div className="insight good"><div className="area">Revenue MTD</div><div className="value">{money(rev)}</div><div className="hint">{state.company.monthTarget ? `${pct}% of ${money(state.company.monthTarget)}` : 'No target — ledger empty'}</div></div>
+      <div className="insight-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        <div className={`insight ${goal.empty ? 'warn' : goal.collected >= goal.amount ? 'good' : 'neutral'}`}>
+          <div className="area">R0 → R1m</div>
+          <div className="value">{money(goal.collected)}</div>
+          <div className="hint">{goal.empty ? '0% · ledger empty until Paidly login' : `${goal.pct}% of ${money(goal.amount)} · next ${money(goal.next)}`}</div>
+        </div>
+        <div className="insight good"><div className="area">Revenue MTD</div><div className="value">{money(rev)}</div><div className="hint">{state.company.monthTarget ? `${pct}% of ${money(state.company.monthTarget)}` : 'No month target — ledger empty'}</div></div>
         <div className="insight risk"><div className="area">Overdue</div><div className="value">{money(overdueTotal(state))}</div><div className="hint">{overdueInvoices(state).length} clients past terms</div></div>
         <div className="insight warn"><div className="area">Outstanding</div><div className="value">{money(outstandingTotal(state))}</div><div className="hint">Includes not-yet-due</div></div>
         <div className="insight"><div className="area">Retainers</div><div className="value">{money(state.clients.reduce((s, c) => s + c.retainer, 0))}</div><div className="hint">Monthly contracted</div></div>

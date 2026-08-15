@@ -8,7 +8,7 @@ type HttpReq = {
 type HttpRes = { statusCode: number; setHeader: (k: string, v: string) => void; end: (s: string) => void }
 
 const ROOT = resolve(process.cwd())
-const ALLOW_DIRS = new Set(['src', 'plugins', 'public', '.cursor'])
+const ALLOW_DIRS = new Set(['src', 'plugins', 'public', '.cursor', 'docs'])
 const ROOT_FILES = new Set(['vite.config.ts', 'package.json', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'index.html', 'README.md'])
 const ALLOW_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.css', '.json', '.md', '.html', '.svg'])
 const BLOCK_DIR = new Set(['node_modules', '.git', 'dist', '.aria', 'coverage', 'agent-transcripts', 'terminals'])

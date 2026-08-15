@@ -27,6 +27,7 @@ export const DECISION_SKILL_NAMES = new Set([
   'strategic-thinking',
   'opportunity-detection',
   'delegation',
+  'software-engineer',
 ])
 
 export async function listCursorSkills(): Promise<CursorSkillInfo[]> {

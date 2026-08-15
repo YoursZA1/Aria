@@ -25,10 +25,12 @@ import {
   retainerRunRate,
 } from './founder'
 import { cursorBusy } from './cursor'
-import { isCursorBuild, isCursorControl, jobFromTask, nextBuildJob, parseAutopilotToggle, spokenDraft, wantsCancel } from './cursorPrompt'
+import { isCursorBuild, isCursorControl, isEmptyBuild, jobFromTask, nextBuildJob, parseAutopilotToggle, spokenDraft, wantsCancel } from './cursorPrompt'
 import { isStackAsk, stackBrief } from './stack'
 import { isCodeAsk, wantsCodeChange } from './code'
-import { isUnpaidAsk, isWealthAsk } from './query'
+import { isGoalAsk, isUnpaidAsk, isWealthAsk } from './query'
+import { goalProgress } from './goal'
+import { formatEval, gateTask, isEngineerAsk, parseLevel3Approval, parseWriteMode } from './engineer'
 import { foldAsk } from '../lib/fold'
 import { isAcknowledgment } from '../lib/ack'
 import { analyseSelf, bottleneckNow, opportunitiesNow, prioritiesNow } from './kernelActions'
@@ -46,6 +48,8 @@ export type BrainResult = {
   cursorJob?: CursorJob
   cancelCursor?: boolean
   autopilot?: boolean
+  writeMode?: import('../types').EngineerWriteMode
+  level3Approved?: boolean
   skillName?: string
 }
 
@@ -130,8 +134,10 @@ export function think(raw: string, state: BusinessState): BrainResult {
       bullets: ['Retrieve first', 'Cite real files'],
     }
   }
+  if (isEngineer(t)) return engineerBrief(state, t)
   if (isCursorControl(t) || isCursorBuild(t) || (isCodeAsk(t) && wantsCodeChange(t))) return cursorLoop(state, text, t)
   if (isUnpaid(t)) return unpaid(state)
+  if (isGoal(t)) return goalBrief(state)
   if (isWealth(t)) return wealthBrief(state, t)
   if (isKnowledge(t)) return knowledgeBrief(state)
   if (isLearn(t)) return researchIntent(text)
@@ -216,6 +222,7 @@ function isBrandCafe(t: string) {
 }
 function isDecide(t: string) {
   if (/remind|invoice|meridian|proposal|haven'?t paid/.test(t)) return false
+  if (isGoal(t) || isWealth(t)) return false
   return /should i |is this (a )?(good|bad)|evaluate (this|the)|hire |spend |invest |borrow |buy |purchase |launch /.test(t)
 }
 function isOpportunity(t: string) {
@@ -227,11 +234,17 @@ function isCeo(t: string) {
 function isPriority(t: string) {
   return /what should i (focus|priorit|do first|work on)|priority stack|my priorities|too many ideas|don't let me chase/.test(t)
 }
+function isEngineer(t: string) {
+  return isEngineerAsk(t)
+}
+function isGoal(t: string) {
+  return isGoalAsk(t)
+}
 function isWealth(t: string) {
   return isWealthAsk(t)
 }
 function isToday(t: string) {
-  if (isStackAsk(t) || isWealth(t) || isUnpaid(t)) return false
+  if (isStackAsk(t) || isWealth(t) || isUnpaid(t) || isGoal(t)) return false
   return /today|need(s)? (my )?attention|deal with|briefing|status (update|report)|good morning/.test(t)
 }
 function isUnpaid(t: string) {
@@ -267,7 +280,7 @@ function isRevenue(t: string) {
   return /revenue|profit|cash flow|this month|kpi|target/.test(t)
 }
 function isLeads(t: string) {
-  if (isWealth(t) || isUnpaid(t)) return false
+  if (isWealth(t) || isUnpaid(t) || isGoal(t)) return false
   return /\bleads?\b|opportunit|\bpipeline\b/.test(t)
 }
 function isCreative(t: string) {
@@ -288,7 +301,7 @@ function isBuild(t: string) {
     || /^(add a feature|add an? (page|widget|button|section|agent|voice|tool)|i want you to (add|build|make)|we should (add|build)|can you add |build a |ship a )/.test(t)
 }
 function isSelf(t: string) {
-  if (isCursorBuild(t) || isCursorControl(t) || isSkillsList(t) || isCodeAsk(t)) return false
+  if (isCursorBuild(t) || isCursorControl(t) || isSkillsList(t) || isCodeAsk(t) || isEngineer(t)) return false
   return /yourself|self[- ]?(repair|analy|build|scan|diagnos)|how (healthy|are) you|your (integrity|kernel)|repair yourself|fix yourself|evolve|grow yourself|scan yourself|analyse yourself|analyze yourself/.test(t)
 }
 
@@ -421,6 +434,19 @@ function outOfScopeBrief(name: string): BrainResult {
 }
 
 function cursorLoop(state: BusinessState, text: string, t: string): BrainResult {
+  const write = parseWriteMode(t)
+  if (write) {
+    return {
+      agentId: 'ceo',
+      intent: 'write-mode',
+      writeMode: write,
+      skillName: 'software-engineer',
+      text:
+        write === 'branch'
+          ? 'Coding agent mode on. I implement on aria/improve-* branches, then stop for a PR. I still do not merge, deploy, or touch payments.'
+          : 'Coding agent writes paused. I will analyse and ticket (Level 1). Say “build yourself” for one job, or turn Branch writes back on.',
+    }
+  }
   const toggle = parseAutopilotToggle(t)
   if (toggle === false) {
     return {
@@ -428,7 +454,7 @@ function cursorLoop(state: BusinessState, text: string, t: string): BrainResult 
       intent: 'autopilot-off',
       autopilot: false,
       cancelCursor: cursorBusy(state),
-      text: 'Autopilot off. I will not pick jobs on my own. Say “build yourself”, “work on Paidly”, or “ship this” when you want the GPT → Cursor path.',
+      text: 'Autopilot off. The nightly improvement cycle also pauses. Say “run the self-improvement cycle” when you want a report without me picking jobs.',
     }
   }
   if (toggle === true) {
@@ -436,7 +462,10 @@ function cursorLoop(state: BusinessState, text: string, t: string): BrainResult 
       agentId: 'ceo',
       intent: 'autopilot-on',
       autopilot: true,
-      text: 'Autopilot on. I’ll find a real build job — roadmap, a miss, or founder-aligned product work — GPT plans it, Cursor implements. Toggle it off anytime.',
+      text:
+        state.writeMode === 'branch'
+          ? 'Autopilot on. I am the coding agent: branch, implement, test, PR. I do not merge.'
+          : 'Autopilot on at Level 1 — analyse and ticket. Turn Branch writes on if you want me to implement.',
     }
   }
   if (wantsCancel(t)) {
@@ -458,6 +487,28 @@ function cursorLoop(state: BusinessState, text: string, t: string): BrainResult 
     }
   }
   const draft = isCodeAsk(t) ? spokenDraft(text, state) : /yourself|aria/.test(t) ? nextBuildJob(state, 'chat') : spokenDraft(text, state)
+  const gate = gateTask(draft.task, {
+    writeMode: state.writeMode ?? 'branch',
+    source: 'chat',
+    approvedIds: state.approvedTicketIds,
+    level3Approved: state.level3Approved,
+  })
+  if (!gate.ok) {
+    return {
+      agentId: 'ceo',
+      intent: 'engineer-gate',
+      skillName: 'software-engineer',
+      text: gate.reason,
+      bullets: [`Classified Level ${gate.level}`, 'Coding agent: Aria · Types via Cursor · Merge: Mando'],
+    }
+  }
+  if (isEmptyBuild(draft)) {
+    return {
+      agentId: 'ceo',
+      intent: 'build',
+      text: 'Nothing open to recover. I will not invent a production rewrite. Ask for the improvement cycle, or name a real file.',
+    }
+  }
   const job = jobFromTask(state, draft.task, draft.source, draft.title, draft.roadmapId)
   const origin =
     draft.via === 'roadmap' || draft.roadmapId
@@ -470,9 +521,52 @@ function cursorLoop(state: BusinessState, text: string, t: string): BrainResult 
   return {
     agentId: 'ceo',
     intent: 'cursor-build',
+    skillName: 'software-engineer',
     cursorJob: job,
-    text: `Building from ${origin}: ${draft.title}. GPT writes the brief, Cursor implements. Stop me on this page.`,
-    bullets: [draft.task.slice(0, 180), `Target: ${job.product}`],
+    text: `Level 2 from ${origin}: ${draft.title}. I am the coding agent — I retrieve, then Cursor types the patch on a branch. You merge. Stop me on this page.`,
+    bullets: [draft.task.slice(0, 180), `Target: ${job.product}`, 'No merge · no deploy · no .env'],
+  }
+}
+
+function engineerBrief(state: BusinessState, t: string): BrainResult {
+  if (parseLevel3Approval(t)) {
+    const waiting = (state.tickets ?? []).filter(
+      (x) => x.level === 3 && x.status !== 'merged' && x.status !== 'rejected' && x.status !== 'rolled_back',
+    )
+    return {
+      agentId: 'ceo',
+      intent: 'level3-approve',
+      level3Approved: true,
+      skillName: 'software-engineer',
+      text: `Level 3 is approved. I may implement auth, payments, migrations, or security on an aria/improve-* branch. I still will not merge, deploy, delete data, or spend. ${waiting.length ? `${waiting.length} ticket${waiting.length === 1 ? '' : 's'} moved to planned.` : 'No Level 3 tickets were waiting — the flag is on for the next one.'}`,
+      bullets: [
+        'Allowed on a branch: auth, payments, migrations, security rules',
+        'Still you: merge, production deploy, delete data, spend',
+        state.writeMode === 'branch' ? 'Coding agent writes are on' : 'Turn Branch writes on if you want me to implement',
+      ],
+    }
+  }
+  if (/run |cycle now|improve yourself|self-improv/.test(t) && /cycle|report|now|loop|improv/.test(t)) {
+    return {
+      agentId: 'ceo',
+      intent: 'improve-run',
+      skillName: 'software-engineer',
+      text: 'Give me a second — running the self-improvement cycle. I will not invent scores.',
+    }
+  }
+  const report = state.reports?.[0]
+  const evalNow = report?.eval
+  return {
+    agentId: 'ceo',
+    intent: 'engineer',
+    skillName: 'software-engineer',
+    text: `I am the coding agent. Level 1 I analyse. Level 2 I implement on a branch and open a PR. Level 3 is you: merge, deploy, auth, payments, data, security, spend. Write mode is ${state.writeMode === 'branch' ? 'on (I code)' : 'off (observe only)'}.`,
+    bullets: [
+      evalNow ? `Last eval ${new Date(evalNow.at).toLocaleString('en-ZA')} · vs prior: ${report?.vsPrev ?? 'none'}` : 'No eval yet — say “run the self-improvement cycle”. I will not invent 92%.',
+      ...(evalNow ? formatEval(evalNow).slice(0, 4) : []),
+      `Open tickets: ${(state.tickets ?? []).filter((x) => x.status === 'proposed' || x.status === 'needs_approval').length}`,
+      'GitHub is the source of truth. Log: docs/AI_IMPROVEMENT_LOG.md',
+    ],
   }
 }
 
@@ -562,11 +656,13 @@ function showRoadmap(state: BusinessState): BrainResult {
 
 function founderBrief(state: BusinessState): BrainResult {
   const retainers = retainerRunRate(state)
+  const goal = goalProgress(state)
   return {
     agentId: 'ceo',
     intent: 'founder',
-    text: `${FOUNDER.fullName}. I have the profile loaded and I work it. You are not trying to stay a designer — you are building a creative and technology ecosystem that employs 20+ people and compounds into wealth. I will challenge you when a shiny idea attacks that.`,
+    text: `${FOUNDER.fullName}. I have the profile loaded and I work it. Scoreboard: ${FOUNDER.ultimateGoal.label} collected — not valuation theatre. You are not trying to stay a designer — you are building a creative and technology ecosystem that employs 20+ people and compounds into wealth. I will challenge you when a shiny idea attacks that.`,
     bullets: [
+      `Ultimate goal: ${goal.headline}`,
       `North star: ${FOUNDER.northStar}`,
       `Philosophy: ${FOUNDER.philosophy}`,
       `Ventures: ${FOUNDER.ventures.map((v) => v.name).join(' · ')}`,
@@ -574,6 +670,22 @@ function founderBrief(state: BusinessState): BrainResult {
       `Default priority: ${FOUNDER.defaultPriority.join(' → ')}`,
       `Retainers in flight: ${money(retainers)}/mo — Level 3. Paidly is Level 4 and it waits if cash is late.`,
       `How I speak: ${FOUNDER.communicate}. I will not agree just because you suggested it.`,
+    ],
+  }
+}
+
+function goalBrief(state: BusinessState): BrainResult {
+  const goal = goalProgress(state)
+  return {
+    agentId: 'finance',
+    intent: 'goal',
+    skillName: 'financial-decision-making',
+    text: `${FOUNDER.ultimateGoal.label}. ${goal.headline} ${FOUNDER.ultimateGoal.definition} Recommendation: first paying client or Paidly subscriber, then retainers, then Paidly MRR. A third company resets the clock.`,
+    bullets: [
+      `Metric: ${goal.metric} · ${money(goal.collected)} / ${money(goal.amount)} (${goal.pct}%)`,
+      `Next milestone: ${money(goal.next)} · gap ${money(goal.nextGap)}`,
+      goal.overdue > 0 ? `Fastest increment: collect ${money(goal.overdue)} overdue.` : 'Nothing overdue in this OS — connect Paidly if cash lives there.',
+      ...goal.path.slice(0, 4),
     ],
   }
 }
@@ -702,8 +814,9 @@ function wealthBrief(state: BusinessState, t: string): BrainResult {
   return {
     agentId: 'finance',
     intent: 'wealth',
-    text: `${lead} Long arc: ${FOUNDER.wealthPath.join(' → ')}. Recurring, margin, IP, equity — not more hours.`,
+    text: `${lead} Scoreboard: ${FOUNDER.ultimateGoal.label} collected. Long arc: ${FOUNDER.wealthPath.join(' → ')}. Recurring, margin, IP, equity — not more hours.`,
     bullets: [
+      goalProgress(state).headline,
       ...FOUNDER.moneyProgression.map((level, i) => `Level ${i + 1}: ${level}${i === 2 ? ` · now ${money(retainerRunRate(state))}/mo` : ''}${i === 3 ? ' · Paidly live' : ''}${i + 1 === current.level ? ' · you are here' : ''}`),
       `North star: ${FOUNDER.northStar}`,
     ],
@@ -907,13 +1020,15 @@ function revenue(state: BusinessState): BrainResult {
   const target = state.company.monthTarget
   const pct = target ? Math.round((rev / target) * 100) : 0
   const overdue = overdueTotal(state)
+  const goal = goalProgress(state)
   return {
     agentId: 'finance',
     intent: 'revenue',
     text: target
-      ? `Month to date ${money(rev)} against ${money(target)} (${pct}%). Overdue ${money(overdue)} is the fastest close — that is an asset already earned, not a new pitch. Retainers ${money(retainerRunRate(state))}/mo is Level 3. Do not confuse activity with progress.`
-      : `Ledger is empty — ${money(rev)} MTD, no target set. I will not invent R48,500. Paidly’s marketing dashboard is not your books. Retainers ${money(retainerRunRate(state))}/mo.`,
+      ? `Month to date ${money(rev)} against ${money(target)} (${pct}%). Ultimate goal ${FOUNDER.ultimateGoal.label}: ${money(goal.collected)} collected (${goal.pct}%). Overdue ${money(overdue)} is the fastest close — that is an asset already earned, not a new pitch. Retainers ${money(retainerRunRate(state))}/mo is Level 3. Do not confuse activity with progress.`
+      : `Ledger is empty — ${money(rev)} MTD. Ultimate goal ${FOUNDER.ultimateGoal.label} is ${money(0)} of ${money(goal.amount)} until Paidly login or a real invoice. I will not invent R48,500. Retainers ${money(retainerRunRate(state))}/mo.`,
     bullets: [
+      `R1m scoreboard: ${money(goal.collected)} / ${money(goal.amount)} (${goal.pct}%)`,
       `Paid this month: ${money(state.invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount, 0))}`,
       `Retainers in flight: ${money(state.clients.reduce((s, c) => s + c.retainer, 0))}/mo`,
       `Overdue: ${money(overdue)} across ${overdueInvoices(state).length} invoices`,
@@ -1020,7 +1135,7 @@ export function openingMessage(state: BusinessState): ChatMessage {
     role: 'assistant',
     agentId: 'ceo',
     intent: 'hello',
-    text: `I’m ${state.company.assistantName}. I work for you first, Mando — BrandCafé and Paidly, live. Cash, then commitments, then assets. GPT plans, Cursor implements. Autopilot is on — stop me on the kernel page. Right now: ${tasksDueToday(state).length} due today, ${state.invoices.length === 0 ? 'empty ledger' : `${overdueInvoices(state).length} overdue`}, ${client ? `${client.name} at risk` : 'no delivery risks'}.`,
+    text: `I’m ${state.company.assistantName}. Coding agent and COO — BrandCafé and Paidly, live. I retrieve this repo, then implement on a branch. You merge. Cash first. Autopilot writes unless you stop me on the kernel page. Right now: ${tasksDueToday(state).length} due today, ${state.invoices.length === 0 ? 'empty ledger' : `${overdueInvoices(state).length} overdue`}, ${client ? `${client.name} at risk` : 'no delivery risks'}.`,
     createdAt: new Date().toISOString(),
   }
 }

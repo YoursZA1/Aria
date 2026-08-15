@@ -3,6 +3,7 @@ import type { AgentId, BusinessState, ChatMessage, CursorJob, Email, ProposedAct
 import { createSeed } from '../data/seed'
 import { openingMessage, think } from '../engine/brain'
 import { evolve, matchSkill, matchWiredSkill } from '../engine/kernel'
+import { approveLevel3, approveTicket, gateTask, runImprovementCycle } from '../engine/engineer'
 import { absorbKnowledge, browseWeb, browserHealth, nextCurriculum, researchReply } from '../engine/browser'
 import { ariaThink, compactStudio, researchDigest, shouldUseGpt, type StudioSnapshot } from '../engine/openai'
 import { fetchCodeContext, localCodeBrief } from '../engine/code'
@@ -12,11 +13,16 @@ import { awaitingClients, overloadedPeople, personById, silentClients } from '..
 import { hydrateFromLive, pullLivePages } from '../engine/live'
 import { applyCursorSnap, cancelCursorRun, cursorBusy, cursorHealth, cursorStatus, startCursorRun } from '../engine/cursor'
 import { jobFromTask, isEmptyBuild, nextBuildJob, pickAutopilotJob, planCursorJob, spokenDraft } from '../engine/cursorPrompt'
-import { applyKernel, KERNEL_PROMPTS, type KernelAction } from '../engine/kernelActions'
-import { stripAddress, toISO, uid, weekdayName } from '../lib/format'
+import { applyKernel, improveCycleNow, KERNEL_PROMPTS, type KernelAction } from '../engine/kernelActions'
+import { isDelegatableTask } from '../engine/founder'
+import { nextMonday, stripAddress, todayISO, uid, weekdayName } from '../lib/format'
 import { normalizeTranscript } from '../lib/hear'
 
 const KEY = 'business-ai-v3'
+
+function persist(state: BusinessState) {
+  localStorage.setItem(KEY, JSON.stringify(state))
+}
 
 function load(): BusinessState {
   const seed = createSeed()
@@ -27,6 +33,7 @@ function load(): BusinessState {
       return seed
     }
     const parsed = JSON.parse(raw) as Partial<BusinessState>
+    const alreadyCoding = parsed.writeModeSeed === 'coding-agent'
     const merged: BusinessState = {
       ...seed,
       ...parsed,
@@ -50,19 +57,25 @@ function load(): BusinessState {
       opportunities: parsed.opportunities ?? [],
       knowledge: parsed.knowledge ?? [],
       autopilot: parsed.autopilot ?? true,
+      writeMode: alreadyCoding ? (parsed.writeMode === 'off' ? 'off' : 'branch') : 'branch',
+      writeModeSeed: 'coding-agent',
       cursorHistory: parsed.cursorHistory ?? [],
+      tickets: parsed.tickets ?? [],
+      reports: parsed.reports ?? [],
+      evals: parsed.evals ?? [],
+      approvedTicketIds: parsed.approvedTicketIds ?? [],
+      level3Approved: parsed.level3Approved === true,
+      level3ApprovedAt: parsed.level3ApprovedAt,
+      lastImproveAt: parsed.lastImproveAt,
       decisions: parsed.decisions ?? [],
     }
     if (!merged.messages?.length) merged.messages = [openingMessage(merged)]
+    if (!alreadyCoding) persist(merged)
     return merged
   } catch {
     seed.messages = [openingMessage(seed)]
     return seed
   }
-}
-
-function persist(state: BusinessState) {
-  localStorage.setItem(KEY, JSON.stringify(state))
 }
 
 function stamp(): { id: string; at: string } {
@@ -76,6 +89,7 @@ type StoreApi = {
   refreshLive: () => Promise<void>
   evolveNow: () => void
   toggleAutopilot: () => void
+  toggleWriteMode: () => void
   stopCursor: () => Promise<void>
   buildNow: (task?: string) => Promise<void>
   runKernel: (action: KernelAction) => Promise<void>
@@ -106,6 +120,30 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const launchCursor = useCallback(async (job: CursorJob) => {
+    const current = stateRef.current
+    const gate = gateTask(job.title, {
+      writeMode: current.writeMode ?? 'branch',
+      source: job.source,
+      approvedIds: current.approvedTicketIds,
+      level3Approved: current.level3Approved,
+    })
+    if (!gate.ok) {
+      commit((prev) => ({
+        ...prev,
+        messages: [
+          ...prev.messages,
+          {
+            id: uid('msg'),
+            role: 'assistant' as const,
+            agentId: 'ceo' as const,
+            intent: 'engineer-gate',
+            text: gate.reason,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }))
+      return
+    }
     if (cursorBusy(stateRef.current)) return
     commit((prev) => ({
       ...prev,
@@ -328,6 +366,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       shipText?: string
       cancelCursor?: boolean
       autopilot?: boolean
+      writeMode?: 'off' | 'branch'
       buildNote?: string
       skillName?: string
       voice?: boolean
@@ -343,7 +382,14 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       if (/repair yourself|fix yourself|evolve|grow yourself|scan yourself|analyse yourself|analyze yourself/.test(forBrain.toLowerCase())) {
         withUser = evolve(withUser)
       }
-      const result = think(forBrain, withUser)
+      const result0 = think(forBrain, withUser)
+      if (result0.intent === 'improve-run') {
+        const ran = runImprovementCycle(withUser)
+        withUser = ran.state
+      }
+      const result = result0.intent === 'improve-run'
+        ? { ...result0, ...improveCycleNow(withUser), intent: 'improve' as const }
+        : result0
       const used = result.intent === 'cursor-skill'
         ? matchWiredSkill(forBrain, withUser.skills)
         : result.intent === 'skill'
@@ -394,6 +440,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       if (result.shipText) pending.shipText = result.shipText
       if (result.cancelCursor) pending.cancelCursor = true
       if (result.autopilot !== undefined) pending.autopilot = result.autopilot
+      if (result.writeMode !== undefined) pending.writeMode = result.writeMode
       if (result.buildNote) pending.buildNote = result.buildNote
       if (result.skillName) pending.skillName = result.skillName
       if (opts?.voice) pending.voice = true
@@ -429,7 +476,9 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         lastIntent: result.intent,
         selectedAgent: prev.selectedAgent,
         autopilot: result.autopilot ?? prev.autopilot,
+        writeMode: result.writeMode ?? prev.writeMode,
       }
+      if (result.level3Approved) next = approveLevel3(next)
       if (!researching && !liveSync && (result.intent === 'fallback' || result.intent === 'build' || result.intent === 'repair-self' || result.intent === 'evolve-self')) {
         next = evolve(next)
       }
@@ -587,7 +636,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
             ? {
                 ...m,
                 intent: 'research',
-                text: `Browser path failed: ${err instanceof Error ? err.message : 'unknown'}. I need npm run dev so I can reach the web — I will not fake a source.`,
+                text: `Browser path failed: ${err instanceof Error ? err.message : 'unknown'} I will not fake a source.`,
               }
             : m,
         ),
@@ -783,7 +832,14 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       if (action.kind === 'reassign') {
         const personIds = (action.payload.personIds as string[] | undefined) ?? overloadedPeople(next).map((p) => p.id)
         const monday = nextMonday()
-        const deferred = next.tasks.filter((t) => t.today && t.priority === 'low' && (personIds.length === 0 || personIds.includes(t.assigneeId)))
+        const today = todayISO()
+        const deferred = next.tasks.filter((t) => {
+          if (t.status === 'done') return false
+          if (personIds.length > 0 && !personIds.includes(t.assigneeId)) return false
+          const onToday = t.today || t.due === today
+          if (!onToday) return false
+          return t.priority === 'low' || isDelegatableTask(t)
+        })
         next = {
           ...next,
           tasks: next.tasks.map((t) =>
@@ -800,6 +856,56 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
           text: deferred.length
             ? `Moved ${deferred.length} low-priority item${deferred.length === 1 ? '' : 's'} to ${weekdayName(monday)}${names ? ` for ${names}` : ''}.`
             : 'Nobody is over capacity with low-priority work to move. I will not invent a team to protect.',
+          createdAt: new Date().toISOString(),
+        }
+        return { ...next, messages: [...next.messages, assistant] }
+      }
+
+      if (action.kind === 'engineer_approve') {
+        const ticketId = String(action.payload.ticketId ?? '')
+        next = ticketId ? approveTicket(next, ticketId) : approveLevel3(next)
+        note(ticketId ? `Mando approved ${ticketId} — still a PR, no merge` : 'Mando approved Level 3 — still a PR, no merge')
+        const assistant: ChatMessage = {
+          id: uid('msg'),
+          role: 'assistant',
+          agentId: 'ceo',
+          intent: 'level3-approve',
+          text: ticketId
+            ? `Level 3 ticket ${ticketId} is approved to be implemented on a branch. I still will not merge, deploy, or touch live payments.`
+            : 'Level 3 is approved. I may implement auth, payments, migrations, or security on a branch. I still will not merge or deploy.',
+          createdAt: new Date().toISOString(),
+        }
+        return { ...next, messages: [...next.messages, assistant] }
+      }
+
+      if (action.kind === 'engineer_implement') {
+        const task = String(action.payload.task ?? action.description ?? 'Bounded OS improvement on a branch')
+        const gate = gateTask(task, {
+          writeMode: 'branch',
+          source: 'chat',
+          approvedIds: next.approvedTicketIds,
+          ticketId: String(action.payload.ticketId ?? ''),
+          level3Approved: next.level3Approved,
+        })
+        if (!gate.ok) {
+          const assistant: ChatMessage = {
+            id: uid('msg'),
+            role: 'assistant',
+            agentId: 'ceo',
+            intent: 'engineer-gate',
+            text: gate.reason,
+            createdAt: new Date().toISOString(),
+          }
+          return { ...next, messages: [...next.messages, assistant] }
+        }
+        pendingJob = jobFromTask(next, task, 'chat')
+        note(`Level 2 branch job queued: ${pendingJob.title}`)
+        const assistant: ChatMessage = {
+          id: uid('msg'),
+          role: 'assistant',
+          agentId: 'ceo',
+          intent: 'cursor-build',
+          text: `Cursor will implement “${pendingJob.title}” on a branch. You review the PR. I do not merge.`,
           createdAt: new Date().toISOString(),
         }
         return { ...next, messages: [...next.messages, assistant] }
@@ -854,6 +960,10 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     await cancelCursorRun()
     const snap = await cursorStatus()
     commit((prev) => applyCursorSnap(prev, snap.current ?? prev.cursorRun, true))
+  }, [commit])
+
+  const toggleWriteMode = useCallback(() => {
+    commit((prev) => ({ ...prev, writeMode: prev.writeMode === 'branch' ? 'off' : 'branch' }))
   }, [commit])
 
   const toggleAutopilot = useCallback(() => {
@@ -942,8 +1052,8 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   }, [refreshFromSites])
 
   const api = useMemo<StoreApi>(() => ({
-    state, ask, learnNow, refreshLive, evolveNow, toggleAutopilot, stopCursor, buildNow, runKernel, runAction, setAgent, dismissBriefing, toggleTheme, reset,
-  }), [state, ask, learnNow, refreshLive, evolveNow, toggleAutopilot, stopCursor, buildNow, runKernel, runAction, setAgent, dismissBriefing, toggleTheme, reset])
+    state, ask, learnNow, refreshLive, evolveNow, toggleAutopilot, toggleWriteMode, stopCursor, buildNow, runKernel, runAction, setAgent, dismissBriefing, toggleTheme, reset,
+  }), [state, ask, learnNow, refreshLive, evolveNow, toggleAutopilot, toggleWriteMode, stopCursor, buildNow, runKernel, runAction, setAgent, dismissBriefing, toggleTheme, reset])
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }
@@ -952,14 +1062,6 @@ export function useBusiness() {
   const ctx = useContext(Ctx)
   if (!ctx) throw new Error('useBusiness must be used inside BusinessProvider')
   return ctx
-}
-
-function nextMonday(from = new Date()): string {
-  const d = new Date(from)
-  const day = d.getDay()
-  const add = day === 1 ? 7 : (1 - day + 7) % 7 || 7
-  d.setDate(d.getDate() + add)
-  return toISO(d)
 }
 
 function patchMessage(state: BusinessState, messageId: string, actionId: string, status: ProposedAction['status']): BusinessState {

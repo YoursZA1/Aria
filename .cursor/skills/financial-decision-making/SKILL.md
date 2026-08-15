@@ -11,6 +11,8 @@ description: >-
 
 Always compute, even when the ledger is empty (then say so). Never invent invoices.
 
+Ultimate goal: **R0 → R1,000,000 verified ZAR collected**. Score purchases and ventures against whether they collect, retain, or compound toward that number. R1m turnover ≠ R1m wealth.
+
 ## Always return
 
 1. **ROI** — payback and what “good” looks like

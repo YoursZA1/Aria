@@ -65,6 +65,14 @@ export function nextFriday(from = new Date()): string {
   return toISO(d)
 }
 
+export function nextMonday(from = new Date()): string {
+  const d = new Date(from)
+  const day = d.getDay()
+  const add = day === 1 ? 7 : (1 - day + 7) % 7 || 7
+  d.setDate(d.getDate() + add)
+  return toISO(d)
+}
+
 export function weekdayName(iso: string): string {
   return parseISO(iso).toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'short' })
 }

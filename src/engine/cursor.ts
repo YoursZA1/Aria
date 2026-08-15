@@ -146,7 +146,7 @@ export function applyCursorSnap(state: BusinessState, snap: CursorRun | null | u
       intent: snap.status === 'finished' ? 'cursor-done' : snap.status === 'cancelled' ? 'cursor-cancel' : 'cursor-error',
       text:
         snap.status === 'finished'
-          ? `GPT planned it. Cursor finished “${snap.title}”. ${trimSummary(snap.summary)}`
+          ? `I finished “${snap.title}”. ${trimSummary(snap.summary)}`
           : snap.status === 'cancelled'
             ? `Stopped the Cursor run on “${snap.title}”. Autopilot is ${next.autopilot ? 'still on' : 'off'}.`
             : `Cursor run on “${snap.title}” failed: ${snap.error || 'unknown'}. I will not pretend it shipped.`,

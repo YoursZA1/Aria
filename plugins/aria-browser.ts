@@ -1,6 +1,7 @@
 import { loadEnv, type Plugin } from 'vite'
 import { handleSkillsRequest, INVESTIGATE_RULE, skillCount } from './aria-skills.ts'
 import { handleCodeRequest } from './aria-code.ts'
+import { handleEngineerRequest } from './aria-engineer.ts'
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Aria/1.0'
@@ -155,8 +156,9 @@ async function openaiChat(payload: {
           {
             role: 'system',
             content:
-              'You are Aria, self-building COO for Armando Mavelele (Mando) of BrandCafé and Paidly (South Africa, ZAR). ' +
-              'Put Mando first: cash, then commitments, then revenue, then assets. Never sycophantic. ' +
+              'You are Aria, coding agent and COO for Armando Mavelele (Mando) of BrandCafé and Paidly (South Africa, ZAR). Cursor is how you type. Mando merges. ' +
+              'Put Mando first: cash, then commitments, then revenue, then assets. Ultimate operating goal: R0 → R1,000,000 verified ZAR collected (paid invoices / Paidly receipts — not valuation, not homepage mock numbers). Empty ledger is R0. ' +
+              'Never sycophantic. ' +
               `${INVESTIGATE_RULE} ` +
               'When deciding: recommendation, reason, numbers, risks, next action. ' +
               `${skillBlock} ` +
@@ -227,11 +229,11 @@ async function openaiPlan(payload: {
           {
             role: 'system',
             content:
-              'You are Aria planning a SINGLE Cursor Agent implementation brief for Armando “Mando” Mavelele. ' +
-              'GPT plans. Cursor writes code. Use the retrieved code pack when present — real paths, not guesses. You do not write the full patch here. ' +
-              'Mando-first: cash, commitments, then assets. Reject vanity, fake invoices, demo studio restore (Meridian/Atlas), random widgets, and Paidly marketing numbers treated as books. ' +
+              'You are Aria, the coding agent, planning a SINGLE implementation brief for Armando “Mando” Mavelele. Cursor is how you type. Use the retrieved code pack when present — real paths, not guesses. You do not write the full patch here. ' +
+              'Mando merges. ' +
+              'Mando-first: cash, commitments, then assets. Ultimate goal R0 → R1 million verified collected. Reject vanity, fake invoices, demo studio restore (Meridian/Atlas), random widgets, Paidly marketing numbers treated as books, and work that does not collect, retain, or compound cash toward that number. ' +
               'This repo is business-ai (Aria OS). Sibling Paidly/BrandCafé folders only if listed in workspaces. ' +
-              'If the job does not help Mando’s cash, delivery, or live products, set reject=true. ' +
+              'If the job does not help Mando’s cash, delivery, live products, or the R1m scoreboard, set reject=true. ' +
               'Reply JSON only: {"title":"","why":"why this helps Mando","files":["src/..."],"scope":"what to change and what not to touch","doneWhen":"","prompt":"full instructions for Cursor Agent.create","target":"aria"|"paidly"|"brandcafe","reject":false,"rejectReason":""}. ' +
               'prompt must be a tight implementation brief Cursor can execute: files, constraints, done-when. Do not commit .env. Do not invent clients.',
           },
@@ -359,6 +361,7 @@ async function wikipedia(query: string): Promise<SearchHit[]> {
     const api = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json&srlimit=5`
     const { text, ok } = await fetchText(api)
     if (!ok) return []
+    if (!text.trim().startsWith('{')) return []
     const data = JSON.parse(text) as { query?: { search?: { title: string; snippet: string }[] } }
     return (data.query?.search ?? []).map((row) => ({
       title: row.title,
@@ -375,6 +378,7 @@ async function duckInstant(query: string): Promise<SearchHit[]> {
     const api = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`
     const { text, ok } = await fetchText(api)
     if (!ok) return []
+    if (!text.trim().startsWith('{')) return []
     const data = JSON.parse(text) as {
       AbstractText?: string
       AbstractURL?: string
@@ -433,6 +437,7 @@ async function googleSearch(query: string, auth: GoogleCreds): Promise<SearchHit
     api.searchParams.set('hl', 'en')
     api.searchParams.set('safe', 'off')
     const { text, ok } = await fetchText(api.toString())
+    if (!text.trim().startsWith('{')) return []
     const data = JSON.parse(text) as {
       error?: { message?: string }
       items?: { title?: string; link?: string; snippet?: string }[]
@@ -472,13 +477,16 @@ async function searchWeb(query: string) {
 
 function attach(server: { middlewares: { use: (fn: (req: { url?: string; method?: string }, res: { statusCode: number; setHeader: (k: string, v: string) => void; end: (s: string) => void }, next: () => void) => void) => void } }) {
   server.middlewares.use((req, res, next) => {
-    const url = req.url ?? ''
+    const url = (req as { originalUrl?: string }).originalUrl ?? req.url ?? ''
     if (!url.startsWith('/__aria/')) return next()
     if (url.startsWith('/__aria/cursor')) return next()
     void (async () => {
       try {
         const parsed = new URL(url, 'http://aria.local')
         if (await handleSkillsRequest(parsed, req as { method?: string; on: (event: string, listener: (arg?: Buffer | string | Error) => void) => void }, res, readBody)) {
+          return
+        }
+        if (await handleEngineerRequest(parsed, req as { method?: string; on: (event: string, listener: (arg?: Buffer | string | Error) => void) => void }, res, readBody)) {
           return
         }
         if (await handleCodeRequest(parsed, req as { method?: string; on: (event: string, listener: (arg?: Buffer | string | Error) => void) => void }, res, readBody)) {

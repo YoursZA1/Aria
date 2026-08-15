@@ -4,6 +4,7 @@ import { VoiceControls } from '../components/ai/VoiceControls'
 import { useBusiness } from '../store/BusinessProvider'
 import { browserHealth } from '../engine/browser'
 import { retainerRunRate } from '../engine/founder'
+import { goalProgress } from '../engine/goal'
 import {
   atRiskProject,
   awaitingClients,
@@ -15,11 +16,12 @@ import {
   tasksDueToday,
 } from '../engine/insights'
 import { nextBuildJob } from '../engine/cursorPrompt'
+import { formatEval } from '../engine/engineer'
 import type { KernelAction } from '../engine/kernelActions'
 import { money } from '../lib/format'
 
 export function AriaKernel() {
-  const { state, ask, runKernel, toggleAutopilot, stopCursor, buildNow } = useBusiness()
+  const { state, ask, runKernel, toggleAutopilot, toggleWriteMode, stopCursor, buildNow } = useBusiness()
   const name = state.company.assistantName
   const open = state.findings.filter((f) => f.status === 'open')
   const overdue = overdueTotal(state)
@@ -35,6 +37,7 @@ export function AriaKernel() {
   const [cursorSkillCount, setCursorSkillCount] = useState(0)
   const wired = state.skills.filter((s) => s.source === 'cursor')
   const nextJob = nextBuildJob(state)
+  const goal = goalProgress(state)
   const [lastKernel, setLastKernel] = useState<KernelAction | null>('analyse')
   const run = (action: KernelAction) => {
     setLastKernel(action)
@@ -51,9 +54,9 @@ export function AriaKernel() {
     <div>
       <header className="page-head">
         <div className="kicker">{name} kernel{gptLive ? ' · ChatGPT · Live' : ''} · repo</div>
-        <h2>Self-building</h2>
+        <h2>Coding agent</h2>
         <p>
-          Three loops, always on — cash, commitments, revenue, then assets. I read this repo before I explain or patch it. Autopilot: GPT plans from real files, Cursor writes the code. Turn it off here if you want me to wait.
+          Three loops, always on — cash, commitments, revenue toward R0 → R1 million. I am the coding agent: I analyse (Level 1), implement on a branch (Level 2), you merge (Level 3). Cursor is how I type. I read this repo before I explain or patch it.
         </p>
         <VoiceControls />
       </header>
@@ -82,12 +85,12 @@ export function AriaKernel() {
             </div>
           </div>
           <div className="insight">
-            <div className="area">3 · Revenue</div>
-            <div className="value">{money(monthRevenue(state))}</div>
+            <div className="area">3 · Revenue → R1m</div>
+            <div className="value">{money(goal.collected)}</div>
             <div className="hint">
-              {state.company.monthTarget
-                ? `${Math.round((monthRevenue(state) / state.company.monthTarget) * 100)}% of ${money(state.company.monthTarget)} · ${money(retainers)}/mo retainers`
-                : `No target set · ${money(retainers)}/mo retainers`}
+              {goal.empty
+                ? `R0 of ${money(goal.amount)} · MTD ${money(monthRevenue(state))} · ${money(retainers)}/mo retainers`
+                : `${goal.pct}% of ${money(goal.amount)} · MTD ${money(monthRevenue(state))} · ${money(retainers)}/mo retainers`}
             </div>
           </div>
           <div className="insight good">
@@ -120,7 +123,7 @@ export function AriaKernel() {
                   || state.cursorRun?.liveText?.slice(-220)
                   || state.cursorRun?.summary?.slice(0, 220)
                   || (state.cursorReady
-                    ? 'Ask how a file works, or tell me to fix it. I retrieve src/ and plugins/ first. Then GPT plans, Cursor implements — one bounded task.'
+                    ? 'Ask how a file works, or tell me to fix it. I retrieve src/ and plugins/ first, then implement — one bounded task. Cursor is how I type. You merge.'
                     : 'Add CURSOR_API_KEY to .env (Cursor Dashboard → Integrations), restart Vite. Key stays on the server.')}
               </div>
             </div>
@@ -136,7 +139,16 @@ export function AriaKernel() {
               aria-pressed={state.autopilot}
             >
               <span className="track" aria-hidden><span className="knob" /></span>
-              Autopilot {state.autopilot ? 'on' : 'off'}
+              Autopilot {state.autopilot ? 'on' : 'off'} · {state.writeMode === 'branch' ? 'L2' : 'L1'}
+            </button>
+            <button
+              type="button"
+              className={`switch ${state.writeMode === 'branch' ? 'on' : ''}`}
+              onClick={toggleWriteMode}
+              aria-pressed={state.writeMode === 'branch'}
+            >
+              <span className="track" aria-hidden><span className="knob" /></span>
+              Branch writes {state.writeMode === 'branch' ? 'on' : 'off'} · L2
             </button>
             <button
               type="button"
@@ -166,12 +178,16 @@ export function AriaKernel() {
             </div>
           </div>
           <div className="list-item">
+            <div className="title">Ultimate goal</div>
+            <div className="sub">{goal.headline}</div>
+          </div>
+          <div className="list-item">
             <div className="title">Default priority</div>
-            <div className="sub">Protect cash → deliver commitments → generate revenue → improve what exists → build assets → then explore.</div>
+            <div className="sub">Protect cash → deliver commitments → generate revenue → improve what exists → build assets → then explore. Score every move against R0 → R1 million collected.</div>
           </div>
           <div className="list-item">
             <div className="title">North star</div>
-            <div className="sub">Valuable businesses, employment, assets, financial independence — work that can grow without you doing everything.</div>
+            <div className="sub">Valuable businesses, employment, assets, financial independence — R1 million collected is the cash milestone on that path, not valuation theatre.</div>
           </div>
         </div>
       </section>
@@ -207,11 +223,49 @@ export function AriaKernel() {
         <button type="button" className={lastKernel === 'learn' ? 'solid' : 'ghost'} onClick={() => run('learn')}>Learn from web</button>
         <button type="button" className={lastKernel === 'sync' ? 'solid' : 'ghost'} onClick={() => run('sync')}>Sync live sites</button>
         <button type="button" className={lastKernel === 'build' ? 'solid' : 'ghost'} onClick={() => run('build')}>Build yourself</button>
+        <button type="button" className={lastKernel === 'improve' ? 'solid' : 'ghost'} onClick={() => run('improve')}>Improve cycle</button>
+        <button type="button" className={lastKernel === 'approve' ? 'solid' : 'ghost'} onClick={() => run('approve')}>
+          {state.level3Approved ? 'Level 3 on' : 'Approve Level 3'}
+        </button>
         <button type="button" className={lastKernel === 'loop' ? 'solid' : 'ghost'} onClick={() => run('loop')}>Run loop now</button>
       </div>
       <p className="sub" style={{ marginTop: 10 }}>
         Next build ({nextJob.via ?? 'spoken'}): {nextJob.title}
+        {state.writeMode !== 'branch' ? ' · Coding agent paused — Autopilot will not write until Branch writes is on.' : ''}
+        {state.level3Approved ? ' · Level 3 approved (branch only — you merge).' : ''}
       </p>
+
+      <section className="section">
+        <div className="section-h"><h3>Engineer cycle</h3><span>Prove improvement — don’t claim it</span></div>
+        <div className="card">
+          {!state.evals?.[0] ? (
+            <p className="sub">No eval yet. Tap Improve cycle. I will not invent 92%.</p>
+          ) : (
+            <>
+              <div className="list-item">
+                <div className="title">{state.reports?.[0]?.summary}</div>
+                <div className="sub">Vs last eval: {state.reports?.[0]?.vsPrev ?? 'insufficient'}</div>
+              </div>
+              {formatEval(state.evals[0]).map((line) => (
+                <div key={line} className="list-item">
+                  <div className="sub">{line}</div>
+                </div>
+              ))}
+            </>
+          )}
+          {(state.tickets ?? []).slice(0, 6).map((t) => (
+            <div key={t.id} className="list-item">
+              <div className="row">
+                <div>
+                  <div className="title">{t.problem}</div>
+                  <div className="sub">{t.improvement}</div>
+                </div>
+                <span className={`pill ${t.level === 3 ? 'risk' : t.level === 2 ? 'warn' : 'neutral'}`}>L{t.level} · {t.status}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="section">
         <div className="section-h"><h3>Findings</h3><span>Self-analysis</span></div>
@@ -355,7 +409,7 @@ export function AriaKernel() {
         </div>
         <div className="card">
           <ul className="activity">
-            {state.activity.filter((a) => a.text.startsWith('Aria') || a.text.startsWith('Build') || a.text.startsWith('Aria autopilot')).slice(0, 12).map((a) => (
+            {state.activity.filter((a) => a.text.startsWith('Aria') || a.text.startsWith('Build') || a.text.startsWith('Kernel') || a.text.startsWith('Mando approved')).slice(0, 12).map((a) => (
               <li key={a.id}>{a.text}</li>
             ))}
           </ul>

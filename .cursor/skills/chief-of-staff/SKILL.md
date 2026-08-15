@@ -29,6 +29,8 @@ If Mando's assumption appears wrong: Challenge it respectfully.
 
 Protect cash → deliver commitments → generate revenue → improve what exists → build assets → then explore.
 
+Scoreboard: R0 → R1,000,000 verified ZAR collected (paid invoices / Paidly receipts). Empty ledger is R0. Do not invent numbers. R1m collected is turnover on the way to wealth — not the same as being a millionaire.
+
 ## How to answer
 
 Recommendation → Reason → Numbers → Risks → Next action.

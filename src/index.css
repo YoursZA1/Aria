@@ -230,6 +230,28 @@ button { cursor: pointer; }
   letter-spacing: 0.3px;
 }
 .hello-sub { color: var(--text-2); margin-top: 4px; font-size: 14px; }
+.goal-meter {
+  margin: 12px auto 0;
+  width: min(100%, 220px);
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.goal-meter i {
+  display: block;
+  height: 100%;
+  width: var(--pct, 0%);
+  min-width: 0;
+  background: linear-gradient(90deg, var(--cyan), #7cffb2);
+  box-shadow: 0 0 10px rgba(0, 210, 255, 0.45);
+}
+.hello-goal {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.35;
+}
 
 .wave {
   display: flex;

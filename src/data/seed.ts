@@ -89,7 +89,14 @@ export function createSeed(): BusinessState {
     briefingDismissed: false,
     theme: 'dark',
     autopilot: true,
+    writeMode: 'branch',
+    writeModeSeed: 'coding-agent',
     cursorHistory: [],
+    tickets: [],
+    reports: [],
+    evals: [],
+    approvedTicketIds: [],
+    level3Approved: false,
     decisions: [],
   }
 }

@@ -38,7 +38,7 @@ export function ChatPanel({ onCollapse }: { onCollapse: () => void }) {
           <p>
             {state.cursorRun && (state.cursorRun.status === 'running' || state.cursorRun.status === 'queued')
               ? `I’m in Cursor building “${state.cursorRun.title}”.`
-              : `Call me ${state.company.assistantName}. I browse, I learn, GPT plans, Cursor builds. Autopilot ${state.autopilot ? 'on' : 'off'}.`}
+              : `Call me ${state.company.assistantName}. Coding agent — I implement on a branch. You merge. Autopilot ${state.autopilot ? 'on' : 'off'} · writes ${state.writeMode === 'branch' ? 'on' : 'paused'}${state.level3Approved ? ' · L3 on' : ''}.`}
           </p>
         </div>
         <button type="button" className="ghost" onClick={onCollapse} aria-label="Collapse assistant">

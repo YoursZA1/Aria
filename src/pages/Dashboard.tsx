@@ -23,6 +23,7 @@ import {
   studioScore,
   tasksDueToday,
 } from '../engine/insights'
+import { goalProgress } from '../engine/goal'
 import { greetingFor, money, nextFriday, todayISO, weekdayName } from '../lib/format'
 import { AriaBrain } from '../components/viz/AriaBrain'
 import { Waveform } from '../components/viz/Waveform'
@@ -43,6 +44,7 @@ const TOOLS: { id: AgentId; icon: typeof Sparkles; prompt: string }[] = [
 ]
 
 const SHORTCUTS = [
+  { label: 'R1m', prompt: 'How do I get from R0 to R1 million?' },
   { label: 'Today', prompt: 'Show me everything I need to deal with today.' },
   { label: 'Priorities', prompt: 'What should I prioritise?' },
   { label: 'Unpaid', prompt: "Which clients haven't paid?" },
@@ -75,6 +77,7 @@ export function Dashboard() {
   const friday = nextFriday()
   const todayEvents = state.events.filter((e) => e.date === todayISO())
   const score = studioScore(state)
+  const goal = goalProgress(state)
 
   async function send(text: string) {
     if (!text.trim() || busy) return
@@ -97,7 +100,11 @@ export function Dashboard() {
       <div className="hq-col">
         <section className="glass hello">
           <p className="hello-hi">{greet}, {state.company.owner}.</p>
-          <p className="hello-sub">{state.company.tagline} I work for you first.</p>
+          <p className="hello-sub">{state.company.tagline} Ultimate goal: R0 → R1 million collected.</p>
+          <div className="goal-meter" style={{ ['--pct' as string]: `${goal.pct}%` }} aria-label={`${money(goal.collected)} of ${money(goal.amount)} collected`}>
+            <i />
+          </div>
+          <p className="hello-goal">{goal.empty ? 'Ledger empty — R0 of R1 million. Paidly mock is not your books.' : `${money(goal.collected)} of ${money(goal.amount)} collected (${goal.pct}%) · next ${money(goal.next)}`}</p>
           <Waveform hot={status === 'listening' || status === 'speaking' || status === 'thinking'} />
         </section>
 
@@ -305,6 +312,10 @@ export function Dashboard() {
               <p>{awaitingClients(state).map((c) => c.name).join(' · ')} awaiting feedback</p>
             </div>
           )}
+          <div className="time-row">
+            <span>R1m</span>
+            <p>{money(goal.collected)} collected of {money(goal.amount)} · {goal.empty ? 'ledger empty' : `${goal.pct}%`}</p>
+          </div>
           <div className="time-row">
             <span>Cash</span>
             <p>{money(overdueTotal(state))} overdue · {briefingPriorities(state).length} priorities left</p>

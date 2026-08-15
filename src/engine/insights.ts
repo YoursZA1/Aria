@@ -1,5 +1,6 @@
 import type { BusinessState, Client, Invoice, Person, Project, Task } from '../types'
 import { money, todayISO } from '../lib/format'
+import { goalProgress } from './goal'
 
 export type Insight = {
   key: string
@@ -74,8 +75,17 @@ export function dashboardInsights(state: BusinessState): Insight[] {
   const overloaded = overloadedPeople(state)
   const risk = atRiskProject(state)
   const riskClient = risk ? clientById(state, risk.clientId) : undefined
+  const goal = goalProgress(state)
 
   return [
+    {
+      key: 'goal',
+      area: 'R0 → R1m',
+      value: money(goal.collected),
+      hint: goal.empty ? 'Empty ledger — 0% of R1 million collected' : `${goal.pct}% collected · next ${money(goal.next)}`,
+      tone: goal.collected >= goal.amount ? 'good' : goal.empty ? 'warn' : 'neutral',
+      href: '/finance',
+    },
     { key: 'tasks', area: 'Tasks', value: `${today.length} due today`, hint: `${state.tasks.filter((t) => t.status === 'review').length} waiting on review`, tone: today.length > 5 ? 'warn' : 'neutral', href: '/work' },
     { key: 'clients', area: 'Clients', value: `${waiting.length} awaiting feedback`, hint: waiting.map((c) => c.name).join(' · ') || 'None blocked', tone: waiting.length ? 'warn' : 'good', href: '/clients' },
     { key: 'projects', area: 'Projects', value: `${prod.length} in production`, hint: `${state.projects.filter((p) => p.daysBehind > 0).length} behind schedule`, tone: risk ? 'risk' : 'neutral', href: '/projects' },

@@ -1,11 +1,13 @@
 import type { AgentId, BusinessState, Finding, Skill } from '../types'
-import { uid } from '../lib/format'
+import { nextMonday, todayISO, uid, weekdayName } from '../lib/format'
 import { FOUNDER_SKILLS } from '../data/founder'
-import { detectNotices, detectOpportunities, mandoToday } from './founder'
+import { detectNotices, detectOpportunities, isDelegatableTask, mandoPerson, mandoToday } from './founder'
 import { overdueInvoices, overloadedPeople, silentClients } from './insights'
+import { maybeNightlyImprove } from './engineer'
+import { collectedRevenue } from './goal'
 import { reminderDrafts } from './actions'
 import { isAcknowledgment } from '../lib/ack'
-import { foldAsk, isUnpaidAsk, isWealthAsk } from './query'
+import { foldAsk, isGoalAsk, isUnpaidAsk, isWealthAsk } from './query'
 
 const STOP = new Set(['the', 'a', 'an', 'to', 'for', 'and', 'or', 'of', 'in', 'on', 'with', 'your', 'you', 'me', 'i', 'it', 'this', 'that', 'add', 'feature', 'please', 'aria', 'hey'])
 
@@ -47,8 +49,11 @@ function hasRecovery(state: BusinessState, miss: string): boolean {
 
 function recoveryReply(miss: string): string {
   const t = foldAsk(miss).toLowerCase()
+  if (isGoalAsk(t)) {
+    return 'Ask “how do I get from R0 to R1 million?” — I score verified collected cash, not valuation. Empty ledger is R0. First rand is a BrandCafé invoice or a Paidly subscriber.'
+  }
   if (isWealthAsk(t)) {
-    return 'Ask “level” or “what’s my level” — I map you to the six-level wealth path (income → retainers → Paidly → assets). I will not confuse it with trivia or GDP.'
+    return 'Ask “level” or “what’s my level” — I map you to the six-level wealth path (income → retainers → Paidly → assets). Scoreboard is R0 → R1 million collected. I will not confuse it with trivia or GDP.'
   }
   if (/weather|temperature|forecast|will it rain/.test(t)) {
     return 'Weather is outside my lane. I’m your COO for BrandCafé and Paidly — cash, commitments, revenue, assets. Ask “what needs my attention today?”'
@@ -181,9 +186,20 @@ export function analyze(state: BusinessState): { findings: Finding[]; integrity:
   const projectOnly = state.clients.filter((c) => c.status === 'active' && c.retainer === 0)
   push(remember(
     'analyze-retainer-mix', 'analyze', 'info', 'Clients still buying time, not retainers',
-    `${projectOnly.map((c) => c.name).join(', ') || 'None'} — that stalls Level 3 recurring income.`,
+    `${projectOnly.map((c) => c.name).join(', ') || 'None'} — that stalls Level 3 recurring income on the R0 → R1 million climb.`,
     'Active clients are on retainers.',
     projectOnly.length > 0, state.repairedIds,
+  ))
+
+  const collected = collectedRevenue(state)
+  push(remember(
+    'analyze-r1m-progress', 'analyze', collected === 0 ? 'warn' : 'info',
+    collected === 0 ? 'R0 of R1 million collected' : `${collected} ZAR toward R1 million`,
+    collected === 0
+      ? 'Ultimate goal is R1,000,000 verified ZAR collected. Ledger is empty — first rand is a BrandCafé invoice or a Paidly subscriber, not a new app. This is a business finding, not a code job.'
+      : `Collected ${collected} toward R1,000,000. Next work is retainers and Paidly MRR, not another brand.`,
+    'Collected revenue is moving toward R1 million.',
+    collected === 0, state.repairedIds,
   ))
 
   push(remember(
@@ -199,7 +215,7 @@ export function analyze(state: BusinessState): { findings: Finding[]; integrity:
     cursorBusyNow
       ? `I’m in Cursor building “${state.cursorRun?.title}”. Kill switch is Autopilot / Stop on this page.`
       : state.autopilot
-        ? 'Autopilot is on. GPT plans one bounded job from the roadmap, a miss, or an open finding, then Cursor implements. I will not invent features or fake invoices.'
+        ? 'Autopilot is on. I am the coding agent: one bounded job from the roadmap, a miss, or an open finding, implemented on a branch. I will not invent features or fake invoices.'
         : 'Autopilot is off. Build yourself ships the next job with retrieved files. Ask me how a file works, or to fix it. Or turn Autopilot on.',
     'I have finished at least one Cursor run in this workspace.',
     ! (state.cursorHistory ?? []).some((r) => r.status === 'finished'),
@@ -273,11 +289,12 @@ export function applyRepairs(state: BusinessState): { state: BusinessState; appl
 
     if (f.id === 'repair-empty-projects') {
       const missing = next.projects.filter((p) => !next.tasks.some((t) => t.projectId === p.id))
+      const kickoffDue = nextMonday()
       const extras = missing.map((p) => ({
         id: uid('t'),
         title: `Kickoff — ${p.name.replace(/^.* — /, '')}`,
-        due: p.due,
-        priority: 'med' as const,
+        due: kickoffDue,
+        priority: 'low' as const,
         status: 'backlog' as const,
         projectId: p.id,
         clientId: p.clientId,
@@ -286,7 +303,28 @@ export function applyRepairs(state: BusinessState): { state: BusinessState; appl
       }))
       next.tasks = [...next.tasks, ...extras]
       applied.push(f.id)
-      log(`Aria repaired: created ${extras.length} kickoff tasks for empty projects.`)
+      log(`Aria repaired: created ${extras.length} kickoff tasks for empty projects (deferred off the founder's today-board).`)
+    }
+
+    if (f.id === 'analyze-mando-bottleneck') {
+      const me = mandoPerson(next)
+      if (!me) continue
+      const today = todayISO()
+      const monday = nextMonday()
+      const delegatable = next.tasks.filter(
+        (t) => t.assigneeId === me.id && t.due === today && t.status !== 'done' && isDelegatableTask(t),
+      )
+      if (!delegatable.length) continue
+      next.tasks = next.tasks.map((t) =>
+        delegatable.some((d) => d.id === t.id)
+          ? { ...t, due: monday, today: false, priority: t.priority === 'high' ? t.priority : ('low' as const) }
+          : t,
+      )
+      next.people = next.people.map((p) =>
+        p.id === me.id ? { ...p, load: Math.max(0, p.load - delegatable.length * 8) } : p,
+      )
+      applied.push(f.id)
+      log(`Aria repaired: deferred ${delegatable.length} production task${delegatable.length === 1 ? '' : 's'} off Mando to ${weekdayName(monday)} — founder time for cash and Paidly.`)
     }
 
     if (f.id === 'repair-lead-next') {
@@ -379,7 +417,7 @@ export function growSkills(state: BusinessState): { state: BusinessState; grown:
     learn({
       name: 'Cursor hands',
       keywords: ['cursor', 'build yourself', 'implement', 'ship this', 'autopilot', 'work on paidly'],
-      reply: 'I write code through Cursor in this workspace, with real files retrieved first. Say “build yourself”, “work on Paidly”, “explain brain.ts”, or “fix the type error”. Autopilot is on unless you turn it off on my kernel page.',
+      reply: 'I write code in this workspace, with real files retrieved first. Say “build yourself”, “work on Paidly”, “explain brain.ts”, or “fix the type error”. Autopilot writes on a branch unless you turn Branch writes off.',
       agentId: 'ceo',
       source: 'self',
     })
@@ -418,7 +456,7 @@ export function evolve(state: BusinessState): BusinessState {
   const repaired = applyRepairs(merged)
   const grown = growSkills(repaired.state)
   const { findings, integrity } = analyze(grown.state)
-  return {
+  const next = {
     ...grown.state,
     findings,
     integrity,
@@ -426,6 +464,7 @@ export function evolve(state: BusinessState): BusinessState {
     opportunities: detectOpportunities(grown.state),
     lastScan: new Date().toISOString(),
   }
+  return maybeNightlyImprove(next)
 }
 
 export function matchSkill(text: string, skills: Skill[]): Skill | undefined {

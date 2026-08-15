@@ -22,3 +22,5 @@ Classify every idea:
 Why now, who, why us, money (ZAR or “unknown”), difficulty, the test that can fail.
 
 Collecting overdue cash beats a new offer. Grow live Paidly before a second SaaS. Labs (Event Platform, Trading Intelligence, Fasting App) stay labs — not new brands.
+
+Score against **R0 → R1 million collected**. At R0, PURSUE is the first paying client or Paidly subscriber — not a prettier product.

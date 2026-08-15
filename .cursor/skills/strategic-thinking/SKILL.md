@@ -15,6 +15,8 @@ Default question (always include):
 
 North star: valuable businesses, employment (20+), assets, financial independence, wealth — CREATING VALUED GROWTH.
 
+Cash milestone: **R0 → R1,000,000 verified collected**. Not valuation. First rand is a BrandCafé invoice or a Paidly subscriber. A third company resets the clock.
+
 Path: expertise → systems → products → assets. Paidly is already the product. Do not open a third consulting brand.
 
 ## Method

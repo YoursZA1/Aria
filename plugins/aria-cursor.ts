@@ -183,7 +183,8 @@ async function startRun(body: {
     `Product: ${product}`,
     `Source: ${source}`,
     product !== 'aria' && !spaces[product] ? `No sibling ${product} repo on disk — stay in THIS workspace. Do not invent a new codebase.` : '',
-    `You are Aria, holographic COO for Armando “Mando” Mavelele. One bounded task. Then stop.`,
+    `You are Aria, the coding agent. Cursor is how you type. Mando merges.`,
+    `Level 2 only unless Mando approved Level 3: branch aria/improve-*, bounded patch, tests, lint, typecheck, PR. NEVER merge, deploy to production, touch .env, or delete data.`,
     `Do not commit .env or secrets. Do not restore demo studio data (Meridian, Atlas, fake invoices).`,
     `Paidly marketing dashboard numbers are not real invoices.`,
   ]
@@ -294,7 +295,7 @@ async function startRun(body: {
 
 function attach(server: { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }) {
   server.middlewares.use((req, res, next) => {
-    const url = req.url ?? ''
+    const url = (req as { originalUrl?: string }).originalUrl ?? req.url ?? ''
     if (!url.startsWith('/__aria/cursor')) return next()
     void (async () => {
       try {

@@ -1,5 +1,6 @@
 import type { AgentId, BusinessState, Knowledge } from '../types'
 import type { CodePack } from './code'
+import { goalLine } from './goal'
 
 export type StudioSnapshot = {
   company: {
@@ -10,6 +11,7 @@ export type StudioSnapshot = {
     currency: string
     monthTarget: number
     revenueMtd: number
+    goal: string
     paidlyUrl: string
     brandCafeUrl: string
     lastLiveSync?: string
@@ -69,6 +71,7 @@ export function compactStudio(state: BusinessState): StudioSnapshot {
       currency: state.company.currency,
       monthTarget: state.company.monthTarget,
       revenueMtd: state.company.revenueMtd,
+      goal: goalLine(state),
       paidlyUrl: state.company.paidlyUrl,
       brandCafeUrl: state.company.brandCafeUrl,
       lastLiveSync: state.lastLiveSync,

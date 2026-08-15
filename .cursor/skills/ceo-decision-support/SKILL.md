@@ -28,3 +28,5 @@ If there's an opportunity: Quantify it.
 If Mando's assumption appears wrong: Challenge it respectfully.
 
 Designer → Creative Director → Business Owner → CEO. If Mando is still doing repeating production, say so.
+
+Does this move collected cash toward R0 → R1 million? If you cannot name the rand, WAIT.

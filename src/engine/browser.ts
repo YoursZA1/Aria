@@ -23,10 +23,27 @@ export type BrowserHealth = {
   engine: 'google' | 'fallback' | 'down'
 }
 
+async function readJson<T>(res: Response, label: string): Promise<T> {
+  const text = await res.text()
+  const trimmed = text.trim()
+  if (!trimmed) throw new Error(`${label} returned an empty body.`)
+  if (trimmed[0] !== '{' && trimmed[0] !== '[') {
+    const hint = trimmed.slice(0, 72).replace(/\s+/g, ' ')
+    throw new Error(
+      `${label} returned HTML/text, not JSON (${res.status}: “${hint}”). /__aria only exists while Vite is serving this app at http://127.0.0.1:5173 — not a static or Vercel 404 page.`,
+    )
+  }
+  try {
+    return JSON.parse(trimmed) as T
+  } catch {
+    throw new Error(`${label} sent broken JSON. I will not fake a source.`)
+  }
+}
+
 export async function browserHealth(): Promise<BrowserHealth> {
   try {
     const res = await fetch('/__aria/health')
-    const data = (await res.json()) as { ok?: boolean; google?: boolean; openai?: boolean; cursor?: boolean; code?: boolean; cursorSkills?: number; engine?: 'google' | 'fallback' }
+    const data = await readJson<{ ok?: boolean; google?: boolean; openai?: boolean; cursor?: boolean; code?: boolean; cursorSkills?: number; engine?: 'google' | 'fallback' }>(res, 'Health')
     return {
       ok: !!data.ok,
       google: !!data.google,
@@ -43,14 +60,14 @@ export async function browserHealth(): Promise<BrowserHealth> {
 
 export async function searchWeb(query: string): Promise<SearchHit[]> {
   const res = await fetch(`/__aria/search?q=${encodeURIComponent(query)}`)
-  const data = (await res.json()) as SearchRes
+  const data = await readJson<SearchRes>(res, 'Search')
   if (!data.ok) throw new Error(data.error || 'Search failed')
   return data.results ?? []
 }
 
 export async function readPage(url: string): Promise<{ url: string; title: string; text: string }> {
   const res = await fetch(`/__aria/read?url=${encodeURIComponent(url)}`)
-  const data = (await res.json()) as ReadRes
+  const data = await readJson<ReadRes>(res, 'Read')
   if (!data.ok && !data.text) throw new Error(data.error || 'Read failed')
   const text = [data.description, data.text].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   return { url: data.url || url, title: data.title || url, text }
