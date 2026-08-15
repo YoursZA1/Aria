@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { ariaPathFromNodeUrl } from './aria-path.ts'
-import { handleBrowserRequest } from './aria-browser.ts'
-import { handleCursorRequest } from './aria-cursor.ts'
+import { ariaPathFromNodeUrl } from './aria-path.js'
+import { handleBrowserRequest } from './aria-browser.js'
+import { handleCursorRequest } from './aria-cursor.js'
 
 export { ariaPathFromNodeUrl }
 

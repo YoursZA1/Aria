@@ -1,8 +1,8 @@
 import { loadEnv, type Plugin } from 'vite'
-import { PROTOCOL_GPT } from '../src/data/protocol.ts'
-import { handleSkillsRequest, INVESTIGATE_RULE, skillCount } from './aria-skills.ts'
-import { handleCodeRequest } from './aria-code.ts'
-import { handleEngineerRequest } from './aria-engineer.ts'
+import { PROTOCOL_GPT } from '../src/data/protocol.js'
+import { handleSkillsRequest, INVESTIGATE_RULE, skillCount } from './aria-skills.js'
+import { handleCodeRequest } from './aria-code.js'
+import { handleEngineerRequest } from './aria-engineer.js'
 
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Aria/1.0'
