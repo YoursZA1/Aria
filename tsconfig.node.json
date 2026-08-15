@@ -19,5 +19,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "plugins/aria-browser.ts", "plugins/aria-cursor.ts", "plugins/aria-skills.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "plugins/**/*.ts", "api/**/*.ts"],
+  "exclude": ["plugins/**/*.test.ts"]
 }

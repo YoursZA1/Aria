@@ -55,3 +55,17 @@ Do not invent scores. If the sample is too small, write **insufficient data**.
 **Did it improve the assistant?** It unblocked normal coding-agent jobs and recorded human approval correctly.
 
 **Lessons.** Do not classify the safety prompt as the task. Approval ≠ merge.
+
+---
+
+## 2026-08-15 — `/__aria` on Vercel
+
+**What changed.** Production was a static SPA. Every `/__aria/*` call 404ed. Same handlers now run behind `vercel.json` rewrite → `api/aria/[...path].ts` → `plugins/aria-serve.ts`. Cursor Agent.create still local-only (501), not a fake 200.
+
+**Why.** Frontend already called real routes; Vercel never registered the Vite middleware.
+
+**Test results.** Path mapping unit tests. Local Vite `/__aria/health` was already 200. Production was 404 HTML before this change.
+
+**Did it improve the assistant?** It unblocks search/read/think/skills on the live site. Cursor spawn remains local.
+
+**Lessons.** Do not stub `/__aria`. Register the existing plugin handlers.

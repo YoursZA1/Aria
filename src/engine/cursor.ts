@@ -4,6 +4,7 @@ import { uid } from '../lib/format'
 export type CursorHealth = {
   ok: boolean
   configured: boolean
+  available?: boolean
   model?: string
   workspaces?: { aria: string; paidly?: string; brandcafe?: string }
   running?: boolean

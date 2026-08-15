@@ -1,0 +1,11 @@
+{
+  "rewrites": [
+    { "source": "/__aria/:path*", "destination": "/api/aria/:path*" }
+  ],
+  "functions": {
+    "api/aria/[...path].ts": {
+      "maxDuration": 60,
+      "includeFiles": "{.cursor/skills/**,src/**,plugins/**,docs/**}"
+    }
+  }
+}

@@ -91,14 +91,19 @@ function json(res: ServerResponse, status: number, data: unknown) {
 }
 
 function publicStatus() {
+  const serverless = Boolean(process.env.VERCEL)
   return {
     ok: true,
     configured: Boolean(env().apiKey),
+    available: Boolean(env().apiKey) && !serverless,
     model: MODEL,
     workspaces: discoverWorkspaces(),
     running: active?.snapshot.status === 'running' || active?.snapshot.status === 'queued',
     current: active?.snapshot ?? history[0] ?? null,
     history: history.slice(0, 8),
+    error: serverless
+      ? 'Cursor Agent.create is local (npm run dev). This health route is live; spawning an agent is not.'
+      : undefined,
   }
 }
 
@@ -294,50 +299,64 @@ async function startRun(body: {
   return { status: 202 as const, data: { ok: true, current: snapshot } }
 }
 
+export async function handleCursorRequest(url: string, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  try {
+    const parsed = new URL(url, 'http://aria.local')
+    const method = (req.method ?? 'GET').toUpperCase()
+    const serverless = Boolean(process.env.VERCEL)
+
+    if (parsed.pathname === '/__aria/cursor/health' && method === 'GET') {
+      json(res, 200, publicStatus())
+      return
+    }
+    if (parsed.pathname === '/__aria/cursor/status' && method === 'GET') {
+      json(res, 200, publicStatus())
+      return
+    }
+    if (parsed.pathname === '/__aria/cursor/cancel' && method === 'POST') {
+      if (serverless) {
+        json(res, 501, { ok: false, error: 'Cursor Agent.cancel is local (npm run dev). Production cannot hold an in-memory agent.' })
+        return
+      }
+      if (!active) {
+        json(res, 200, { ok: true, current: history[0] ?? null, message: 'Nothing running' })
+        return
+      }
+      await active.cancel()
+      json(res, 200, { ok: true, current: active.snapshot })
+      return
+    }
+    if (parsed.pathname === '/__aria/cursor/run' && method === 'POST') {
+      if (serverless) {
+        json(res, 501, {
+          ok: false,
+          error: 'Cursor Agent.create needs the local Vite process. Production can think, search, read, and load skills — it cannot spawn a local Cursor agent.',
+        })
+        return
+      }
+      const raw = await readBody(req)
+      let body: { prompt?: string; title?: string; product?: CursorProduct; source?: CursorSource } = {}
+      try {
+        body = raw ? (JSON.parse(raw) as typeof body) : {}
+      } catch {
+        json(res, 400, { ok: false, error: 'Invalid JSON' })
+        return
+      }
+      const result = await startRun(body)
+      json(res, result.status, result.data)
+      return
+    }
+    json(res, 404, { ok: false, error: 'Unknown Aria Cursor route' })
+  } catch (err) {
+    json(res, 502, { ok: false, error: err instanceof Error ? err.message : 'Cursor bridge failed' })
+  }
+}
+
 function attach(server: { middlewares: { use: (fn: (req: IncomingMessage, res: ServerResponse, next: () => void) => void) => void } }) {
   server.middlewares.use((req, res, next) => {
     const url = (req as { originalUrl?: string }).originalUrl ?? req.url ?? ''
     if (!url.startsWith('/__aria/cursor')) return next()
-    void (async () => {
-      try {
-        const parsed = new URL(url, 'http://aria.local')
-        const method = (req.method ?? 'GET').toUpperCase()
-
-        if (parsed.pathname === '/__aria/cursor/health' && method === 'GET') {
-          json(res, 200, publicStatus())
-          return
-        }
-        if (parsed.pathname === '/__aria/cursor/status' && method === 'GET') {
-          json(res, 200, publicStatus())
-          return
-        }
-        if (parsed.pathname === '/__aria/cursor/cancel' && method === 'POST') {
-          if (!active) {
-            json(res, 200, { ok: true, current: history[0] ?? null, message: 'Nothing running' })
-            return
-          }
-          await active.cancel()
-          json(res, 200, { ok: true, current: active.snapshot })
-          return
-        }
-        if (parsed.pathname === '/__aria/cursor/run' && method === 'POST') {
-          const raw = await readBody(req)
-          let body: { prompt?: string; title?: string; product?: CursorProduct; source?: CursorSource } = {}
-          try {
-            body = raw ? (JSON.parse(raw) as typeof body) : {}
-          } catch {
-            json(res, 400, { ok: false, error: 'Invalid JSON' })
-            return
-          }
-          const result = await startRun(body)
-          json(res, result.status, result.data)
-          return
-        }
-        json(res, 404, { ok: false, error: 'Unknown Aria Cursor route' })
-      } catch (err) {
-        json(res, 502, { ok: false, error: err instanceof Error ? err.message : 'Cursor bridge failed' })
-      }
-    })()
+    void handleCursorRequest(url, req, res)
   })
 }
 

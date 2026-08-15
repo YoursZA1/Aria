@@ -476,14 +476,12 @@ async function searchWeb(query: string) {
   return { results: results.slice(0, 8), engine: 'fallback' as const }
 }
 
-function attach(server: { middlewares: { use: (fn: (req: { url?: string; method?: string }, res: { statusCode: number; setHeader: (k: string, v: string) => void; end: (s: string) => void }, next: () => void) => void) => void } }) {
-  server.middlewares.use((req, res, next) => {
-    const url = (req as { originalUrl?: string }).originalUrl ?? req.url ?? ''
-    if (!url.startsWith('/__aria/')) return next()
-    if (url.startsWith('/__aria/cursor')) return next()
-    void (async () => {
-      try {
-        const parsed = new URL(url, 'http://aria.local')
+type AriaReq = { url?: string; method?: string; originalUrl?: string; on: (event: string, listener: (arg?: Buffer | string | Error) => void) => void }
+type AriaRes = { statusCode: number; setHeader: (k: string, v: string) => void; end: (s: string) => void }
+
+export async function handleBrowserRequest(url: string, req: AriaReq, res: AriaRes): Promise<void> {
+  try {
+    const parsed = new URL(url, 'http://aria.local')
         if (await handleSkillsRequest(parsed, req as { method?: string; on: (event: string, listener: (arg?: Buffer | string | Error) => void) => void }, res, readBody)) {
           return
         }
@@ -663,7 +661,14 @@ function attach(server: { middlewares: { use: (fn: (req: { url?: string; method?
       } catch (err) {
         json(res, 502, { ok: false, error: scrub(err instanceof Error ? err.message : 'Browse failed') })
       }
-    })()
+}
+
+function attach(server: { middlewares: { use: (fn: (req: { url?: string; method?: string }, res: { statusCode: number; setHeader: (k: string, v: string) => void; end: (s: string) => void }, next: () => void) => void) => void } }) {
+  server.middlewares.use((req, res, next) => {
+    const url = (req as { originalUrl?: string }).originalUrl ?? req.url ?? ''
+    if (!url.startsWith('/__aria/')) return next()
+    if (url.startsWith('/__aria/cursor')) return next()
+    void handleBrowserRequest(url, req as AriaReq, res)
   })
 }
 
