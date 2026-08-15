@@ -90,7 +90,7 @@ export function Dashboard() {
     }
   }
 
-  function useTool(id: AgentId, prompt: string) {
+  function selectTool(id: AgentId, prompt: string) {
     setAgent(id)
     send(prompt)
   }
@@ -116,7 +116,7 @@ export function Dashboard() {
               const def = AGENTS.find((a) => a.id === t.id)
               const on = state.selectedAgent === t.id
               return (
-                <button key={t.id} type="button" className={`tool ${on ? 'on' : ''}`} onClick={() => useTool(t.id, t.prompt)}>
+                <button key={t.id} type="button" className={`tool ${on ? 'on' : ''}`} onClick={() => selectTool(t.id, t.prompt)}>
                   <span className="tool-ico"><Icon size={22} /></span>
                   <span>{def?.name}</span>
                 </button>
