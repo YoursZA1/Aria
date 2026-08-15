@@ -24,7 +24,7 @@ describe('aria-env', () => {
 
   it('keeps vite out of the Vercel function graph', () => {
     const files = [
-      'api/aria/[...path].ts',
+      'api/aria.ts',
       'plugins/aria-serve.ts',
       'plugins/aria-path.ts',
       'plugins/aria-env.ts',

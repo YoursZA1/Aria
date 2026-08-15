@@ -1,8 +1,19 @@
 /** Server env for /__aria. Never import vite here — Vercel cannot load its native bindings. */
 
+const STATIC = {
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  CURSOR_API_KEY: process.env.CURSOR_API_KEY,
+  GOOGLE_CSE_API_KEY: process.env.GOOGLE_CSE_API_KEY,
+  GOOGLE_CSE_CX: process.env.GOOGLE_CSE_CX,
+  GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+  GOOGLE_CSE_ID: process.env.GOOGLE_CSE_ID,
+  ARIA_PAIDLY_CWD: process.env.ARIA_PAIDLY_CWD,
+  ARIA_BRANDCAFE_CWD: process.env.ARIA_BRANDCAFE_CWD,
+}
+
 export function envValue(...keys: string[]): string {
   for (const key of keys) {
-    const value = process.env[key]
+    const value = STATIC[key as keyof typeof STATIC] ?? process.env[key]
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
   return ''

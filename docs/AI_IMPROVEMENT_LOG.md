@@ -82,4 +82,4 @@ Do not invent scores. If the sample is too small, write **insufficient data**.
 
 **Did it improve the assistant?** It is required for search/read/think/skills on https://aria-khaki-one.vercel.app. Cursor spawn remains local.
 
-**Lessons.** Vite plugins may import `vite`. The Vercel `/__aria` dispatcher may not.
+**Lessons.** Vite plugins may import `vite`. The Vercel `/__aria` dispatcher may not. Nested catch-all `api/aria/[...path]` only matched one segment on this Vite project — use one `api/aria.ts` and pass the rest as `__path`.

@@ -1,9 +1,9 @@
 {
   "rewrites": [
-    { "source": "/__aria/:path*", "destination": "/api/aria/:path*" }
+    { "source": "/__aria/:path*", "destination": "/api/aria?__path=:path*" }
   ],
   "functions": {
-    "api/aria/[...path].ts": {
+    "api/aria.ts": {
       "maxDuration": 60,
       "includeFiles": "{.cursor/skills/**,src/**,plugins/**,docs/**}"
     }

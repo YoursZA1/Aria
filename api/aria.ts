@@ -1,5 +1,6 @@
+/// <reference types="node" />
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { serveAria } from '../../plugins/aria-serve.js'
+import { serveAria } from '../plugins/aria-serve.js'
 
 export const config = {
   runtime: 'nodejs',
