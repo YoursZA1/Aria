@@ -31,8 +31,8 @@ export function Systems() {
       name: 'ChatGPT',
       status: browser.openai ? 'connected' : 'soon',
       detail: browser.openai
-        ? 'gpt-4o-mini · chat, research, and Autopilot briefs · key stays on the server'
-        : 'Add OPENAI_API_KEY to .env, then restart Vite',
+        ? 'ChatGPT writes Aria’s replies · gpt-4o-mini · key stays on the server'
+        : 'Add OPENAI_API_KEY to local .env and Vercel Production, then restart / redeploy',
     },
     {
       name: 'Browser',

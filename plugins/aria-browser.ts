@@ -102,6 +102,8 @@ async function openaiChat(payload: {
   skill?: { name?: string; body?: string }
   voice?: boolean
   code?: unknown
+  draft?: { text?: string; bullets?: string[] }
+  history?: { role?: string; text?: string }[]
 }): Promise<ThinkOut> {
   const key = openaiKey()
   if (!key) throw new Error('OpenAI is not configured')
@@ -112,7 +114,7 @@ async function openaiChat(payload: {
         ? 'Synthesize only from the research items. Do not invent sources.'
         : payload.intent === 'code' || payload.code
           ? 'You retrieved real files from this repo (code pack). Explain from those excerpts. Cite paths. If a file is missing, say so. Do not invent source. Small quotes only — not a dump. If Mando wants a change, say you will ship it through Cursor.'
-          : 'Answer from the live snapshot. Empty ledger means empty — do not invent invoices, studio clients, or Paidly homepage mock numbers (Highveld, Brightleaf).'
+          : 'Answer from the live snapshot and the local retrieve draft. Empty ledger means empty — do not invent invoices, studio clients, or Paidly homepage mock numbers (Highveld, Brightleaf).'
   const skillBlock = payload.skill?.body
     ? `Follow the attached Cursor skill “${payload.skill.name ?? 'skill'}” as instructions. Investigate, retrieve, calculate, compare. Do not dump a canned one-liner.`
     : 'If a better answer needs investigation, do not simply answer.'
@@ -142,6 +144,7 @@ async function openaiChat(payload: {
               'When deciding: Assessment, Analysis, Recommendation (PURSUE/TEST/WAIT/REJECT), Risk, Next Action. ' +
               `${skillBlock} ` +
               extra +
+              ' You write the reply Mando sees. ChatGPT is the voice; local retrieve is the facts. Prefer snapshot + draft numbers. Do not contradict a retrieve draft with invented figures. ' +
               (payload.voice
                 ? ' Mando is speaking out loud. Reply as conversation: 2-4 short sentences, no markdown, no filler. Put lists in bullets. Address the matter immediately.'
                 : '') +
@@ -154,6 +157,8 @@ async function openaiChat(payload: {
               user: String(payload.text).slice(0, 4000),
               intent: payload.intent,
               studio: payload.snapshot,
+              draft: payload.draft ?? undefined,
+              history: Array.isArray(payload.history) ? payload.history.slice(-8) : undefined,
               research: payload.research,
               code: payload.code ?? undefined,
               skill: payload.skill?.name
@@ -533,6 +538,8 @@ export async function handleBrowserRequest(url: string, req: AriaReq, res: AriaR
             task?: string
             voice?: boolean
             code?: unknown
+            draft?: { text?: string; bullets?: string[] }
+            history?: { role?: string; text?: string }[]
           }
           const intent = typeof body.intent === 'string' ? body.intent : 'fallback'
           if (intent === 'plan') {
@@ -576,6 +583,8 @@ export async function handleBrowserRequest(url: string, req: AriaReq, res: AriaR
             skill: body.skill,
             voice: Boolean(body.voice),
             code: body.code,
+            draft: body.draft,
+            history: body.history,
           })
           json(res, 200, { ok: true, ...out })
           return

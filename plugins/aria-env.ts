@@ -1,8 +1,10 @@
 /** Server env for /__aria. Never import vite here — Vercel cannot load its native bindings. */
+import { env as nodeEnv } from 'node:process'
 
 export function envValue(...keys: string[]): string {
+  const bag = nodeEnv as Record<string, string | undefined>
   for (const key of keys) {
-    const value = process.env[key]
+    const value = bag[key]
     if (typeof value === 'string' && value.trim()) return value.trim()
   }
   return ''

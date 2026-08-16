@@ -83,3 +83,17 @@ Do not invent scores. If the sample is too small, write **insufficient data**.
 **Did it improve the assistant?** It is required for search/read/think/skills on https://aria-khaki-one.vercel.app. Cursor spawn remains local.
 
 **Lessons.** Vite plugins may import `vite`. The Vercel `/__aria` dispatcher may not. Nested catch-all `api/aria/[...path]` only matched one segment on this Vite project — use one `api/aria.ts` and pass the rest as `__path`.
+
+---
+
+## 2026-08-16 — ChatGPT writes the reply
+
+**What changed.** Local brain still retrieves (ledger, skills, code, intent). ChatGPT (`POST /__aria/think`, gpt-4o-mini) writes the reply Mando sees for conversational intents. Mechanical OS actions stay local. If ChatGPT is down, Aria says so and keeps the retrieve draft.
+
+**Why.** Most chat intents never called OpenAI, so Aria looked like a canned kernel even when the ChatGPT route existed.
+
+**Test results.** `shouldUseGpt` unit tests: today/unpaid/hello go through ChatGPT; live-sync/ack/autopilot stay local.
+
+**Did it improve the assistant?** It makes ChatGPT the voice. Production still needs `OPENAI_API_KEY` on the function at runtime.
+
+**Lessons.** Retrieve first, then generate. Do not let a failed GPT call look like a successful canned answer.

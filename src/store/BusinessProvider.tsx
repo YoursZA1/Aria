@@ -370,6 +370,8 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       buildNote?: string
       skillName?: string
       voice?: boolean
+      draft?: { text: string; bullets?: string[] }
+      history?: { role: 'user' | 'assistant'; text: string }[]
     } = { query: '', lookingId: '' }
 
     commit((prev) => {
@@ -428,6 +430,11 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         pending.lookingId = lookingId
         pending.userText = forBrain
         pending.snapshot = compactStudio(withUser)
+        pending.draft = { text: result.text, bullets: result.bullets }
+        pending.history = withUser.messages
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .slice(-8)
+          .map((m) => ({ role: m.role, text: m.text.slice(0, 500) }))
       } else if (thinking) {
         pending.mode = 'think'
         pending.query = result.researchQuery || forBrain
@@ -435,6 +442,11 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         pending.intent = result.intent
         pending.userText = forBrain
         pending.snapshot = compactStudio(withUser)
+        pending.draft = { text: result.text, bullets: result.bullets }
+        pending.history = withUser.messages
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .slice(-8)
+          .map((m) => ({ role: m.role, text: m.text.slice(0, 500) }))
       }
       if (result.cursorJob) pending.cursorJob = result.cursorJob
       if (result.shipText) pending.shipText = result.shipText
@@ -567,8 +579,10 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         skill: attached,
         voice: pending.voice,
         code: pack ?? undefined,
+        draft: pending.draft,
+        history: pending.history,
       })
-      if (gpt) {
+      if (gpt.ok) {
         commit((prev) => ({
           ...prev,
           messages: prev.messages.map((m) =>
@@ -576,9 +590,9 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
               ? {
                   ...m,
                   intent: pending.intent,
-                  text: gpt.text,
-                  bullets: gpt.bullets ?? m.bullets,
-                  agentId: gpt.agentId ?? m.agentId,
+                  text: gpt.reply.text,
+                  bullets: gpt.reply.bullets ?? m.bullets,
+                  agentId: gpt.reply.agentId ?? m.agentId,
                 }
               : m,
           ),
@@ -598,7 +612,21 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
         }))
         return
       }
-      if (pending.intent !== 'fallback' && pending.intent !== 'cursor-skill') return
+      if (pending.intent !== 'fallback' && pending.intent !== 'cursor-skill') {
+        commit((prev) => ({
+          ...prev,
+          messages: prev.messages.map((m) =>
+            m.id === pending.lookingId
+              ? {
+                  ...m,
+                  intent: pending.intent,
+                  text: `${gpt.error}. Local retrieve:\n\n${m.text}`,
+                }
+              : m,
+          ),
+        }))
+        return
+      }
       pending.mode = 'research'
     }
     try {
@@ -612,8 +640,10 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
           research: researchDigest(pending.query, items),
           skill: attached,
           voice: pending.voice,
+          draft: pending.draft,
+          history: pending.history,
         })
-        if (gpt) reply = { text: gpt.text, bullets: gpt.bullets ?? reply.bullets }
+        if (gpt.ok) reply = { text: gpt.reply.text, bullets: gpt.reply.bullets ?? reply.bullets }
       }
       commit((prev) => {
         const absorbed = absorbKnowledge(prev, items, pending.query)

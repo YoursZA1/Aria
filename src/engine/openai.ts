@@ -35,6 +35,8 @@ export type ThinkRequest = {
   skill?: { name: string; body: string }
   voice?: boolean
   code?: CodePack
+  draft?: { text: string; bullets?: string[] }
+  history?: { role: 'user' | 'assistant'; text: string }[]
 }
 
 export type ThinkReply = {
@@ -43,21 +45,29 @@ export type ThinkReply = {
   agentId?: AgentId
 }
 
+export type ThinkResult =
+  | { ok: true; reply: ThinkReply }
+  | { ok: false; error: string }
+
 const AGENTS: AgentId[] = ['ceo', 'client', 'project', 'finance', 'marketing', 'creative']
 
-const GPT_INTENTS = new Set([
-  'fallback',
-  'research',
-  'build',
-  'cursor-skill',
-  'skill',
-  'decide',
-  'exec',
-  'code',
+/** Mechanical OS actions — local brain stays. Everything Mando reads as a reply goes through ChatGPT. */
+const SKIP_CHATGPT = new Set([
+  'live-sync',
+  'ignore',
+  'ack',
+  'voice-check',
+  'autopilot-on',
+  'autopilot-off',
+  'write-mode',
+  'cursor-cancel',
+  'cursor-busy',
+  'improve-run',
+  'level3-approve',
 ])
 
 export function shouldUseGpt(intent: string) {
-  return GPT_INTENTS.has(intent)
+  return !SKIP_CHATGPT.has(intent)
 }
 
 export function compactStudio(state: BusinessState): StudioSnapshot {
@@ -115,24 +125,36 @@ export function researchDigest(query: string, items: Knowledge[]): ThinkRequest[
   }
 }
 
-export async function ariaThink(input: ThinkRequest): Promise<ThinkReply | null> {
+export async function ariaThink(input: ThinkRequest): Promise<ThinkResult> {
   try {
     const res = await fetch('/__aria/think', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
-    if (!res.ok) return null
-    const data = (await res.json()) as { ok?: boolean; text?: string; bullets?: string[]; agentId?: string }
-    if (!data.ok || !data.text?.trim()) return null
+    const data = (await res.json().catch(() => ({}))) as {
+      ok?: boolean
+      text?: string
+      bullets?: string[]
+      agentId?: string
+      error?: string
+    }
+    if (res.status === 503) {
+      return { ok: false, error: data.error?.trim() || 'ChatGPT is not configured' }
+    }
+    if (!res.ok) return { ok: false, error: data.error?.trim() || `ChatGPT HTTP ${res.status}` }
+    if (!data.ok || !data.text?.trim()) return { ok: false, error: 'ChatGPT returned an empty reply' }
     const agentId = AGENTS.includes(data.agentId as AgentId) ? (data.agentId as AgentId) : undefined
     return {
-      text: data.text.trim(),
-      bullets: Array.isArray(data.bullets) ? data.bullets.map(String).slice(0, 6) : undefined,
-      agentId,
+      ok: true,
+      reply: {
+        text: data.text.trim(),
+        bullets: Array.isArray(data.bullets) ? data.bullets.map(String).slice(0, 6) : undefined,
+        agentId,
+      },
     }
   } catch {
-    return null
+    return { ok: false, error: 'ChatGPT request failed' }
   }
 }
 

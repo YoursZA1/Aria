@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { env as nodeEnv } from 'node:process'
 import { serveAria } from '../plugins/aria-serve.js'
 
 export const config = {
@@ -9,9 +10,9 @@ export const config = {
 }
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  void process.env.OPENAI_API_KEY
-  void process.env.CURSOR_API_KEY
-  void process.env.GOOGLE_CSE_API_KEY
-  void process.env.GOOGLE_CSE_CX
+  void nodeEnv.OPENAI_API_KEY
+  void nodeEnv.CURSOR_API_KEY
+  void nodeEnv.GOOGLE_CSE_API_KEY
+  void nodeEnv.GOOGLE_CSE_CX
   await serveAria(req, res)
 }

@@ -32,7 +32,7 @@ The frontend calls `/__aria/*`. Those routes are **implemented**, not stubs.
 | `GET /__aria/health` | Plugin + keys status | Live |
 | `GET /__aria/search` | Web search (Google CSE or fallback) | Live if env set |
 | `GET /__aria/read` | Fetch + extract a URL | Live |
-| `POST /__aria/think` | OpenAI JSON reply | Live if `OPENAI_API_KEY` |
+| `POST /__aria/think` | ChatGPT JSON reply (gpt-4o-mini) | Live if `OPENAI_API_KEY` reaches the function |
 | `GET /__aria/skills` | Skill catalog | Live |
 | `POST /__aria/skills/match` | Match a skill | Live |
 | `GET /__aria/cursor/health` | Cursor key + status | Route live; **Agent.create is local Vite only** |
